@@ -6,6 +6,31 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <style>
+    th, td {
+  border:1px solid #333;
+  padding:8px 8px;
+  text-align:left;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+input {
+  background:#2c2c2c;
+  color:#e0e0e0;
+  border:1px solid #444;
+  border-radius:4px;
+  padding:4px;
+  margin:2px 0;
+  width:80px;
+  max-width:100%;
+  box-sizing: border-box;
+}
+td[data-label="Actions"], th[data-label="Actions"] {
+  min-width: 170px;
+  max-width: 200px;
+  width: 180px;
+}
     body { font-family:'Segoe UI',sans-serif; background:#121212; color:#e0e0e0; padding:20px }
     h1 { text-align:center; color:#fff; margin-bottom:10px }
     #portfolio-summary, #credit-usage, #predicted-usage { text-align:center; margin:10px 0; font-weight:bold }
@@ -18,7 +43,7 @@
     input { background:#2c2c2c; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:4px; margin:2px 0; width:80px }
     .liquidity-value { color: #2ecc71; }
     .supply-apy, .pred-supply { color: yellow; white-space: nowrap; }
-    .borrow-apy, .pred-borrow { color: #e74c3c; white-space: nowrap; }
+    .borrow-apy, .pred-borrow { color: #e74c3c; white-space: nowrap;}
     .your-lend, .your-borrow { color: #9b59b6; font-weight: bold; }
     button { background:#3b82f6; border:none; color:#fff; padding:6px 10px; margin:2px; border-radius:4px; cursor:pointer }
     button:hover { background:#2563eb }
