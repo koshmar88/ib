@@ -200,20 +200,21 @@ row.innerHTML = `
   <td data-label="Your Borrow" class="your-borrow">${usdBorrow.toLocaleString(undefined,{maximumFractionDigits:2})}</td>
   <td data-label="Actions">
     <input id="supply-${p.address}" placeholder="Supply"/><button onclick="supply('${p.address}',${p.decimals})">Supply</button><br/>
+    <input id="withdraw-${p.address}" placeholder="Redeem"/><button onclick="withdraw('${p.address}',${p.decimals})">Redeem</button><br/>
     <input id="borrow-${p.address}" placeholder="Borrow"/><button onclick="borrow('${p.address}',${p.decimals})">Borrow</button><br/>
     <input id="repay-${p.address}" placeholder="Repay"/><button onclick="repay('${p.address}',${p.decimals})">Repay</button><br/>
-    <input id="withdraw-${p.address}" placeholder="Redeem"/><button onclick="withdraw('${p.address}',${p.decimals})">Redeem</button><br/>
     <button onclick="preview('${p.address}')">Preview</button>
     <button onclick="updatePool('${p.address}')">Update</button>
   </td>`;
 tbody.appendChild(row);
       }catch(e){ console.error(e); }}
       const myNet = totL - totB;
-      const netAPY = myNet !== 0 ? (wS - wB) / Math.abs(myNet) : 0;
-      const daily = myNet * netAPY / 365;
-      const hourly = daily / 24;
-      document.getElementById('portfolio-summary').innerText =
-        `Portfolio: $${myNet.toFixed(2)} | Net APY: ${(netAPY*100).toFixed(2)}% | Daily: $${daily.toFixed(2)} | Hourly: $${hourly.toFixed(2)}`;
+const netAPY = myNet !== 0 ? (wS - wB) / Math.abs(myNet) : 0;
+const daily = myNet * netAPY / 365;
+const hourly = daily / 24;
+const borrowAvailable = Math.max(totC - totB, 0);
+document.getElementById('portfolio-summary').innerText =
+  `Portfolio: $${myNet.toFixed(2)} | Net APY: ${(netAPY*100).toFixed(2)}% | Daily: $${daily.toFixed(2)} | Hourly: $${hourly.toFixed(2)} | Borrow Available: $${borrowAvailable.toFixed(2)}`;
       updatePredictedPortfolio(myNet, netAPY, daily, hourly);
       window.dashboardState.totalLendUSD = totL;
       window.dashboardState.totalBorrowUSD = totB;
