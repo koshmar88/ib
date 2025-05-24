@@ -27,9 +27,18 @@ input {
   box-sizing: border-box;
 }
 td[data-label="Actions"], th[data-label="Actions"] {
-  min-width: 170px;
-  max-width: 200px;
-  width: 180px;
+  min-width: 130px;
+  max-width: 170px;
+  width: 170px;
+  vertical-align: top;
+  td[data-label="Actions"] button,
+td[data-label="Actions"] input {
+  width: 98%;
+  min-width: 0;
+  margin: 4px 0;
+  box-sizing: border-box;
+  display: block;
+}
 }
     body { font-family:'Segoe UI',sans-serif; background:#121212; color:#e0e0e0; padding:20px }
     h1 { text-align:center; color:#fff; margin-bottom:10px }
