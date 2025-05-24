@@ -232,9 +232,9 @@ tbody.appendChild(row);
   // Читаем ввод пользователя
   const parseInput = (id, decimals) => {
     const el = document.getElementById(id);
-    if (!el || el.value.trim() === "") return null;
+    if (!el || el.value.trim() === "") return ethers.BigNumber.from(0);
     const val = parseFloat(el.value);
-    if (isNaN(val) || val <= 0) return null;
+    if (isNaN(val) || val <= 0) return ethers.BigNumber.from(0);
     return ethers.utils.parseUnits(val.toString(), decimals);
   };
   const sup = parseInput(`supply-${addr}`, p.decimals);
@@ -355,92 +355,109 @@ tbody.appendChild(row);
   }
 }
 
-    async function previewAll() {
-      let totL = 0, totB = 0, totC = 0, wS = 0, wB = 0;
-      let predL = 0, predB = 0, predC = 0, predWS = 0, predWB = 0;
-      const user = await signer.getAddress();
-      for (const p of pools) {
-        const stats = window.dashboardState.poolStats[p.address];
+ async function previewAll() {
+  if (!signer) { setStatus('❌ Connect wallet first'); return; }
+  setStatus('🔄 Calculating preview…');
+  let totL = 0, totB = 0, totC = 0, wS = 0, wB = 0;
+  let predL = 0, predB = 0, predC = 0, predWS = 0, predWB = 0;
+  const user = await signer.getAddress();
 
-        // Читаем ввод пользователя
-        const parseInput = (id, decimals) => {
-          const val = parseFloat(document.getElementById(id).value);
-          if (isNaN(val) || val <= 0) return ethers.BigNumber.from(0);
-          return ethers.utils.parseUnits(val.toString(), decimals);
-        };
-        const sup = parseInput(`supply-${p.address}`, p.decimals);
-        const bor = parseInput(`borrow-${p.address}`, p.decimals);
-        const rep = parseInput(`repay-${p.address}`, p.decimals);
-        const wit = parseInput(`withdraw-${p.address}`, p.decimals);
+  // Собираем все вводы пользователя по всем пулам
+  const userInputs = pools.map(p => {
+    const parseInput = (id, decimals) => {
+      const el = document.getElementById(id);
+      if (!el || el.value.trim() === "") return ethers.BigNumber.from(0);
+      const val = parseFloat(el.value);
+      if (isNaN(val) || val <= 0) return ethers.BigNumber.from(0);
+      return ethers.utils.parseUnits(val.toString(), decimals);
+    };
+    return {
+      p,
+      sup: parseInput(`supply-${p.address}`, p.decimals),
+      bor: parseInput(`borrow-${p.address}`, p.decimals),
+      rep: parseInput(`repay-${p.address}`, p.decimals),
+      wit: parseInput(`withdraw-${p.address}`, p.decimals)
+    };
+  });
 
-        // Получаем on-chain балансы пользователя
-        const c = new ethers.Contract(p.address, [
-          "function balanceOf(address) view returns(uint256)",
-          "function borrowBalanceStored(address) view returns(uint256)",
-          "function exchangeRateStored() view returns(uint256)"
-        ], provider);
-        const [cBal, bBal, exRate] = await Promise.all([
-          c.balanceOf(user),
-          c.borrowBalanceStored(user),
-          c.exchangeRateStored()
-        ]);
+  for (const {p, sup, bor, rep, wit} of userInputs) {
+  const stats = window.dashboardState.poolStats[p.address];
+  const c = new ethers.Contract(p.address, [
+    "function balanceOf(address) view returns(uint256)",
+    "function borrowBalanceStored(address) view returns(uint256)",
+    "function exchangeRateStored() view returns(uint256)"
+  ], provider);
+  const [cBal, bBal, exRate] = await Promise.all([
+    c.balanceOf(user),
+    c.borrowBalanceStored(user),
+    c.exchangeRateStored()
+  ]);
+  const usdLend = parseFloat(ethers.utils.formatUnits(cBal.mul(exRate).div(ethers.BigNumber.from("1000000000000000000")), p.decimals));
+  const usdBorrow = parseFloat(ethers.utils.formatUnits(bBal, p.decimals));
+  totL += usdLend;
+  totB += usdBorrow;
+  totC += usdLend * p.collateralFactor;
+  wS += usdLend * stats.supplyAPY;
+  wB += usdBorrow * stats.borrowAPY;
 
-        // Текущие значения
-        const usdLend = parseFloat(ethers.utils.formatUnits(cBal.mul(exRate).div(ethers.BigNumber.from("1000000000000000000")), p.decimals));
-        const usdBorrow = parseFloat(ethers.utils.formatUnits(bBal, p.decimals));
-        totL += usdLend;
-        totB += usdBorrow;
-        totC += usdLend * p.collateralFactor;
+  // --- Новый пересчёт балансов пользователя (как в preview) ---
+  let predUsdLend = usdLend;
+  let predUsdBorrow = usdBorrow;
+  if (!sup.isZero()) predUsdLend += parseFloat(ethers.utils.formatUnits(sup, p.decimals));
+  if (!wit.isZero()) {
+    predUsdLend -= parseFloat(ethers.utils.formatUnits(wit, p.decimals));
+    if (predUsdLend < 0) predUsdLend = 0;
+  }
+  if (!bor.isZero()) predUsdBorrow += parseFloat(ethers.utils.formatUnits(bor, p.decimals));
+  if (!rep.isZero()) {
+    predUsdBorrow -= parseFloat(ethers.utils.formatUnits(rep, p.decimals));
+    if (predUsdBorrow < 0) predUsdBorrow = 0;
+  }
 
-        // Прогнозируем новые значения балансов пользователя
-        let newCBal = cBal.add(sup).sub(wit);
-        if (newCBal.lt(0)) newCBal = ethers.BigNumber.from(0);
-        let newBBal = bBal.add(bor).sub(rep);
-        if (newBBal.lt(0)) newBBal = ethers.BigNumber.from(0);
+  predL += predUsdLend;
+  predB += predUsdBorrow;
+  predC += predUsdLend * p.collateralFactor;
 
-        const predUsdLend = parseFloat(ethers.utils.formatUnits(newCBal.mul(exRate).div(ethers.BigNumber.from("1000000000000000000")), p.decimals));
-        const predUsdBorrow = parseFloat(ethers.utils.formatUnits(newBBal, p.decimals));
-        predL += predUsdLend;
-        predB += predUsdBorrow;
-        predC += predUsdLend * p.collateralFactor;
+  // --- Прогнозируемый supply/borrow APY ---
+  const newCash = stats.cash.add(sup).sub(wit);
+  const newBorrows = stats.borrows.add(bor).sub(rep);
+  const newReserves = stats.reserves;
 
-        // Прогнозируемый supply/borrow APY (оставляем как есть)
-        const newCash = stats.cash.add(sup).sub(wit);
-        const newBorrows = stats.borrows.add(bor).sub(rep);
-        const newReserves = stats.reserves;
+  let supplyAPYPred = stats.supplyAPY, borrowAPYPred = stats.borrowAPY;
+  try {
+    const im = new ethers.Contract(stats.modelAddr, [
+      "function getBorrowRate(uint256,uint256,uint256) view returns(uint256)",
+      "function getSupplyRate(uint256,uint256,uint256,uint256) view returns(uint256)"
+    ], provider);
+    const brRaw = await im.getBorrowRate(newCash, newBorrows, newReserves);
+    const srRaw = await im.getSupplyRate(newCash, newBorrows, newReserves, stats.resFact);
+    const brPB = parseFloat(ethers.utils.formatUnits(brRaw, 18));
+    const srPB = parseFloat(ethers.utils.formatUnits(srRaw, 18));
+    borrowAPYPred = (1 + brPB) ** blocksPerYear - 1;
+    supplyAPYPred = (1 + srPB) ** blocksPerYear - 1;
+    updatePredAPY(p.address, supplyAPYPred, borrowAPYPred);
+  } catch (e) {
+    updatePredAPY(p.address, NaN, NaN);
+  }
 
-        let supplyAPYPred = stats.supplyAPY, borrowAPYPred = stats.borrowAPY;
-        try {
-          const im = new ethers.Contract(stats.modelAddr, [
-            "function getBorrowRate(uint256,uint256,uint256) view returns(uint256)",
-            "function getSupplyRate(uint256,uint256,uint256,uint256) view returns(uint256)"
-          ], provider);
-          const brRaw = await im.getBorrowRate(newCash, newBorrows, newReserves);
-          const srRaw = await im.getSupplyRate(newCash, newBorrows, newReserves, stats.resFact);
-          const brPB = parseFloat(ethers.utils.formatUnits(brRaw, 18));
-          const srPB = parseFloat(ethers.utils.formatUnits(srRaw, 18));
-          borrowAPYPred = (1 + brPB) ** blocksPerYear - 1;
-          supplyAPYPred = (1 + srPB) ** blocksPerYear - 1;
-          updatePredAPY(p.address, supplyAPYPred, borrowAPYPred);
-        } catch (e) {
-          updatePredAPY(p.address, NaN, NaN);
-        }
+  predWS += predUsdLend * supplyAPYPred;
+  predWB += predUsdBorrow * borrowAPYPred;
+}
 
-        predWS += predUsdLend * supplyAPYPred;
-        predWB += predUsdBorrow * borrowAPYPred;
-      }
-      // Portfolio прогноз
-      const myNet = totL - totB;
-      const netAPY = myNet !== 0 ? (wS - wB) / Math.abs(myNet) : 0;
-      const daily = myNet * netAPY / 365;
-      const hourly = daily / 24;
-      updatePredictedPortfolio(myNet, netAPY, daily, hourly);
+  // Portfolio прогноз
+  const myNet = predL - predB;
+  const netAPY = myNet !== 0 ? (predWS - predWB) / Math.abs(myNet) : 0;
+  const daily = myNet * netAPY / 365;
+  const hourly = daily / 24;
+  updatePredictedPortfolio(myNet, netAPY, daily, hourly);
 
-      // Predicted Usage
-      const curPct = totC ? (totB / totC) * 100 : 0;
-      const predPct = predC ? (predB / predC) * 100 : 0;
-      updateUsage(curPct, predPct);
-    }
+  // Predicted Usage
+  const curPct = totC ? (totB / totC) * 100 : 0;
+  const predPct = predC ? (predB / predC) * 100 : 0;
+  updateUsage(curPct, predPct);
+  setStatus('✅ Preview all calculated');
+}
+    
 
     async function supply(addr,dec){
       const val = document.getElementById(`supply-${addr}`).value;
