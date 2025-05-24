@@ -104,12 +104,22 @@
       const s=document.getElementById(`pred-supply-${p.address}`), b=document.getElementById(`pred-borrow-${p.address}`);
       if(s) s.textContent=''; if(b) b.textContent='';
     }); }
-    function updatePredAPY(addr,sAPY,bAPY){
-      const sp = document.getElementById(`pred-supply-${addr}`);
-      sp.classList.add('pred-supply'); sp.textContent = ` → ${(sAPY*100).toFixed(2)}%`;
-      const bp = document.getElementById(`pred-borrow-${addr}`);
-      bp.classList.add('pred-borrow'); bp.textContent = ` → ${(bAPY*100).toFixed(2)}%`;
-    }
+    function updatePredAPY(addr, sAPY, bAPY) {
+  const sp = document.getElementById(`pred-supply-${addr}`);
+  sp.classList.add('pred-supply');
+  if (isNaN(sAPY)) {
+    sp.innerHTML = '';
+  } else {
+    sp.innerHTML = `&nbsp;→ ${(sAPY*100).toFixed(2)}%`;
+  }
+  const bp = document.getElementById(`pred-borrow-${addr}`);
+  bp.classList.add('pred-borrow');
+  if (isNaN(bAPY)) {
+    bp.innerHTML = '';
+  } else {
+    bp.innerHTML = `&nbsp;→ ${(bAPY*100).toFixed(2)}%`;
+  }
+}
 
     async function connectWallet(){
       if(!window.ethereum){ setStatus('❌ MetaMask not installed'); return; }
