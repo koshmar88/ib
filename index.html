@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>IRON BANK POOLS</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <style>
     body { font-family:'Segoe UI',sans-serif; background:#121212; color:#e0e0e0; padding:20px }
@@ -23,6 +24,30 @@
     button:hover { background:#2563eb }
     .progress-container { background:#333; border-radius:4px; width:80%; height:12px; margin:4px auto }
     .progress-bar { height:100%; width:0; border-radius:4px; transition:width .3s,background-color .3s }
+    @media (max-width: 800px) {
+  body { padding: 5px; }
+  table, thead, tbody, th, td, tr { display: block; width: 100%; }
+  thead { display: none; }
+  tr { margin-bottom: 15px; border-bottom: 2px solid #333; }
+  td {
+    border: none;
+    position: relative;
+    padding-left: 50%;
+    min-height: 32px;
+    box-sizing: border-box;
+  }
+  td:before {
+    position: absolute;
+    left: 10px;
+    top: 12px;
+    width: 45%;
+    white-space: nowrap;
+    font-weight: bold;
+    color: #aaa;
+    content: attr(data-label);
+  }
+  .button-group button, input { width: 95%; margin: 4px 0; }
+  #portfolio-summary, #credit-usage, #predicted-usage { font-size: 1em; }
   </style>
 </head>
 <body>
@@ -152,26 +177,26 @@
         };
         const fmt=v=>Number(ethers.utils.formatUnits(v,p.decimals)).toLocaleString(undefined,{maximumFractionDigits:2});
         const row = document.createElement('tr');
-        row.innerHTML = `
-          <td>${p.name}</td>
-          <td class="liquidity-value">${fmt(cash)}</td>
-          <td>${fmt(totalSupply)}</td>
-          <td class="supply-apy">${(supplyAPY*100).toFixed(2)}% <em id="pred-supply-${p.address}"></em></td>
-          <td>${fmt(borrows)}</td>
-          <td class="borrow-apy">${(borrowAPY*100).toFixed(2)}% <em id="pred-borrow-${p.address}"></em></td>
-          <td>${fmt(reserves)}</td>
-          <td>${utilization.toFixed(2)}%</td>
-          <td class="your-lend">${usdLend.toLocaleString(undefined,{maximumFractionDigits:2})}</td>
-          <td class="your-borrow">${usdBorrow.toLocaleString(undefined,{maximumFractionDigits:2})}</td>
-          <td>
-            <input id="supply-${p.address}" placeholder="Supply"/><button onclick="supply('${p.address}',${p.decimals})">Supply</button><br/>
-            <input id="borrow-${p.address}" placeholder="Borrow"/><button onclick="borrow('${p.address}',${p.decimals})">Borrow</button><br/>
-            <input id="repay-${p.address}" placeholder="Repay"/><button onclick="repay('${p.address}',${p.decimals})">Repay</button><br/>
-            <input id="withdraw-${p.address}" placeholder="Redeem"/><button onclick="withdraw('${p.address}',${p.decimals})">Redeem</button><br/>
-            <button onclick="preview('${p.address}')">Preview</button>
-            <button onclick="updatePool('${p.address}')">Update</button>
-          </td>`;
-        tbody.appendChild(row);
+row.innerHTML = `
+  <td data-label="Token">${p.name}</td>
+  <td data-label="Liquidity" class="liquidity-value">${fmt(cash)}</td>
+  <td data-label="Total Supply">${fmt(totalSupply)}</td>
+  <td data-label="Supply APY" class="supply-apy">${(supplyAPY*100).toFixed(2)}% <em id="pred-supply-${p.address}"></em></td>
+  <td data-label="Total Borrow">${fmt(borrows)}</td>
+  <td data-label="Borrow APY" class="borrow-apy">${(borrowAPY*100).toFixed(2)}% <em id="pred-borrow-${p.address}"></em></td>
+  <td data-label="Reserves">${fmt(reserves)}</td>
+  <td data-label="Utilization">${utilization.toFixed(2)}%</td>
+  <td data-label="Your Lend" class="your-lend">${usdLend.toLocaleString(undefined,{maximumFractionDigits:2})}</td>
+  <td data-label="Your Borrow" class="your-borrow">${usdBorrow.toLocaleString(undefined,{maximumFractionDigits:2})}</td>
+  <td data-label="Actions">
+    <input id="supply-${p.address}" placeholder="Supply"/><button onclick="supply('${p.address}',${p.decimals})">Supply</button><br/>
+    <input id="borrow-${p.address}" placeholder="Borrow"/><button onclick="borrow('${p.address}',${p.decimals})">Borrow</button><br/>
+    <input id="repay-${p.address}" placeholder="Repay"/><button onclick="repay('${p.address}',${p.decimals})">Repay</button><br/>
+    <input id="withdraw-${p.address}" placeholder="Redeem"/><button onclick="withdraw('${p.address}',${p.decimals})">Redeem</button><br/>
+    <button onclick="preview('${p.address}')">Preview</button>
+    <button onclick="updatePool('${p.address}')">Update</button>
+  </td>`;
+tbody.appendChild(row);
       }catch(e){ console.error(e); }}
       const myNet = totL - totB;
       const netAPY = myNet !== 0 ? (wS - wB) / Math.abs(myNet) : 0;
