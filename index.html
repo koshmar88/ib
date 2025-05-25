@@ -69,6 +69,36 @@ td[data-label="Actions"] input {
     padding-left: 50%;
     min-height: 32px;
     box-sizing: border-box;
+    /* Исправления: */
+    max-width: none;
+    overflow: visible;
+    text-overflow: unset;
+    white-space: normal;
+    word-break: break-word;
+  }
+  td:before {
+    position: absolute;
+    left: 10px;
+    top: 12px;
+    width: 45%;
+    white-space: nowrap;
+    font-weight: bold;
+    color: #aaa;
+    content: attr(data-label);
+  }
+  .button-group button, input { width: 95%; margin: 4px 0; }
+  #portfolio-summary, #credit-usage, #predicted-usage { font-size: 1em; }
+}@media (max-width: 800px) {
+  body { padding: 5px; }
+  table, thead, tbody, th, td, tr { display: block; width: 100%; }
+  thead { display: none; }
+  tr { margin-bottom: 15px; border-bottom: 2px solid #333; }
+  td {
+    border: none;
+    position: relative;
+    padding-left: 50%;
+    min-height: 32px;
+    box-sizing: border-box;
   }
   td:before {
     position: absolute;
