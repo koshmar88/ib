@@ -153,6 +153,8 @@ td[data-label="Actions"], th[data-label="Actions"] {
     <tbody id="data-body"></tbody>
   </table>
   <div id="status"></div>
+  <div id="history-section" style="margin-top: 30px;"></div>
+
   <script>
     const blocksPerYear = 2628000;
     let provider, signer;
@@ -321,6 +323,19 @@ document.getElementById('portfolio-summary').innerText =
       window.dashboardState.totalBorrowUSD = totB;
       window.dashboardState.totalCapacityUSD = totC;
       const curPct = totC ? (totB / totC) * 100 : 0;
+      try {
+  const history = JSON.parse(localStorage.getItem("earnHistory") || "[]");
+  history.push({
+    date: new Date().toISOString(),
+    net: myNet.toFixed(2),
+    daily: daily.toFixed(2),
+    apy: (netAPY * 100).toFixed(2)
+  });
+  localStorage.setItem("earnHistory", JSON.stringify(history.slice(-30))); // последние 30 записей
+  renderHistoryTable();
+} catch (e) {
+  console.warn("Error saving history", e);
+}
       updateUsage(curPct, curPct);
       clearPredAPY(); setStatus('');
     }
@@ -515,9 +530,11 @@ predC += pL * pool.collateralFactor;
       updatePredictedPortfolio(myNet, netAPY, daily, hourly);
 
       // usage
-      const curPct = totC ? (totB / totC) * 100 : 0;
-      const predPct = predC ? (predB / predC) * 100 : 0;
-      updateUsage(curPct, predPct);
+const predPct = predC ? (predB / predC) * 100 : 0;
+const currentPct = window.dashboardState.totalCapacityUSD
+  ? (window.dashboardState.totalBorrowUSD / window.dashboardState.totalCapacityUSD) * 100
+  : 0;
+updateUsage(currentPct, predPct);
       setStatus('✅ Preview all calculated');
     }
 
