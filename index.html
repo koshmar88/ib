@@ -58,37 +58,8 @@ td[data-label="Actions"] input {
     button:hover { background:#2563eb }
     .progress-container { background:#333; border-radius:4px; width:80%; height:12px; margin:4px auto }
     .progress-bar { height:100%; width:0; border-radius:4px; transition:width .3s,background-color .3s }
-    @media (max-width: 800px) {
-  body { padding: 5px; }
-  table, thead, tbody, th, td, tr { display: block; width: 100%; }
-  thead { display: none; }
-  tr { margin-bottom: 15px; border-bottom: 2px solid #333; }
-  td {
-    border: none;
-    position: relative;
-    padding-left: 50%;
-    min-height: 32px;
-    box-sizing: border-box;
-    /* Исправления: */
-    max-width: none;
-    overflow: visible;
-    text-overflow: unset;
-    white-space: normal;
-    word-break: break-word;
-  }
-  td:before {
-    position: absolute;
-    left: 10px;
-    top: 12px;
-    width: 45%;
-    white-space: nowrap;
-    font-weight: bold;
-    color: #aaa;
-    content: attr(data-label);
-  }
-  .button-group button, input { width: 95%; margin: 4px 0; }
-  #portfolio-summary, #credit-usage, #predicted-usage { font-size: 1em; }
-}@media (max-width: 800px) {
+  
+  @media (max-width: 800px) {
   body { padding: 5px; }
   table, thead, tbody, th, td, tr { display: block; width: 100%; }
   thead { display: none; }
@@ -110,9 +81,16 @@ td[data-label="Actions"] input {
     color: #aaa;
     content: attr(data-label);
   }
-  .button-group button, input { width: 95%; margin: 4px 0; }
+.button-group button, input {
+  width: 95%;
+  margin: 4px 0;
+  white-space: nowrap;
+  text-align: center;
   #portfolio-summary, #credit-usage, #predicted-usage { font-size: 1em; }
-  </style>
+  }</style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+
 </head>
 <body>
   <h1>IRON BANK POOLS</h1>
@@ -149,7 +127,15 @@ td[data-label="Actions"] input {
     const blocksPerYear = 2628000;
     let provider, signer;
     const GREEN='#2ecc71', RED='#e74c3c';
-    window.dashboardState = { totalLendUSD:0, totalBorrowUSD:0, totalCapacityUSD:0, weightedSupply:0, weightedBorrow:0, poolStats:{} };
+window.dashboardState = {
+  totalLendUSD: 0,
+  totalBorrowUSD: 0,
+  totalCapacityUSD: 0,
+  weightedSupply: 0,
+  weightedBorrow: 0,
+  poolStats: {},
+  ethPriceUSD: 0
+};
     const pools=[
       {name:'USDT',address:'0x48759F220ED983dB51fA7A8C0D2AAb8f3ce4166a',decimals:6,collateralFactor:0.90},
       {name:'DAI', address:'0x8e595470Ed749b85C6F7669de83EAe304C2ec68F',decimals:18,collateralFactor:0.80},
@@ -207,6 +193,8 @@ td[data-label="Actions"] input {
     async function loadPoolData(){
       if(!signer){ setStatus('❌ Connect wallet first'); return; }
       setStatus('🔄 Loading…');
+      await fetchEthPriceUSD();
+
       const abi=[
         "function getCash() view returns(uint256)",
         "function totalBorrows() view returns(uint256)",
@@ -238,8 +226,20 @@ td[data-label="Actions"] input {
         const supplyAPY = (1+srPB)**blocksPerYear - 1;
         const totalSupply = cash.add(borrows).sub(reserves);
         const utilization = borrows.mul(10000).div(totalSupply).toNumber()/100;
-        const usdLend = parseFloat(ethers.utils.formatUnits(cBal.mul(exRate).div(ethers.BigNumber.from("1000000000000000000")), p.decimals));
-        const usdBorrow = parseFloat(ethers.utils.formatUnits(bBal, p.decimals));
+       let usdLend = parseFloat(ethers.utils.formatUnits(
+  cBal.mul(exRate).div(ethers.BigNumber.from("1000000000000000000")),
+  p.decimals
+));
+
+let usdBorrow = parseFloat(ethers.utils.formatUnits(bBal, p.decimals));
+
+if (p.name === 'ETH') {
+  const ethPrice = window.dashboardState.ethPriceUSD;
+  usdLend *= ethPrice;
+  usdBorrow *= ethPrice;
+}
+
+
         totL+=usdLend; totB+=usdBorrow; totC+=usdLend*p.collateralFactor; wS+=usdLend*supplyAPY; wB+=usdBorrow*borrowAPY;
         window.dashboardState.poolStats[p.address] = {
           cash, borrows, reserves, modelAddr, resFact,
@@ -249,8 +249,15 @@ td[data-label="Actions"] input {
           decimals: p.decimals,
           collateralFactor: p.collateralFactor
         };
-        const fmt=v=>Number(ethers.utils.formatUnits(v,p.decimals)).toLocaleString(undefined,{maximumFractionDigits:2});
-        const row = document.createElement('tr');
+        const fmt = v => Number(ethers.utils.formatUnits(v, p.decimals)).toLocaleString(undefined, {
+  maximumFractionDigits: 2
+});
+
+const borrowText = p.name === 'ETH'
+  ? `${parseFloat(ethers.utils.formatUnits(bBal, p.decimals)).toFixed(4)} ${p.name}<br/><small style="color:#aaa">($${usdBorrow.toLocaleString(undefined,{maximumFractionDigits:2})})</small>`
+  : `${usdBorrow.toLocaleString(undefined,{maximumFractionDigits:2})} ${p.name}`;
+
+const row = document.createElement('tr');
 row.innerHTML = `
   <td data-label="Token">${p.name}</td>
   <td data-label="Liquidity" class="liquidity-value">${fmt(cash)}</td>
@@ -261,7 +268,7 @@ row.innerHTML = `
   <td data-label="Reserves">${fmt(reserves)}</td>
   <td data-label="Utilization">${utilization.toFixed(2)}%</td>
   <td data-label="Your Lend" class="your-lend">${usdLend.toLocaleString(undefined,{maximumFractionDigits:2})}</td>
-  <td data-label="Your Borrow" class="your-borrow">${usdBorrow.toLocaleString(undefined,{maximumFractionDigits:2})}</td>
+  <td data-label="Your Borrow" class="your-borrow">${borrowText}</td>
   <td data-label="Actions">
     <input id="supply-${p.address}" placeholder="Supply"/><button onclick="supply('${p.address}',${p.decimals})">Supply</button><br/>
     <input id="withdraw-${p.address}" placeholder="Redeem"/><button onclick="withdraw('${p.address}',${p.decimals})">Redeem</button><br/>
@@ -300,6 +307,7 @@ document.getElementById('portfolio-summary').innerText =
         document.getElementById('portfolio-summary').after(el);
       }
       el.innerText = `Predicted Portfolio: $${myNet.toFixed(2)} | Net APY: ${(netAPY*100).toFixed(2)}% | Daily: $${daily.toFixed(2)} | Hourly: $${hourly.toFixed(2)}`;
+      
     }
 
     async function preview(addr) {
@@ -351,6 +359,7 @@ document.getElementById('portfolio-summary').innerText =
       }
     }
  async function previewAll() {
+      await fetchEthPriceUSD();
       if (!signer) { setStatus('❌ Connect wallet first'); return; }
       setStatus('🔄 Calculating preview…');
       const user = await signer.getAddress();
@@ -411,9 +420,17 @@ document.getElementById('portfolio-summary').innerText =
           if (pB < 0) pB = 0;
         }
 
-        predL += pL;
-        predB += pB;
-        predC += pL * pool.collateralFactor;
+ if (pool.name === 'ETH') {
+  const ethPrice = window.dashboardState.ethPriceUSD;
+  pL *= ethPrice;
+  pB *= ethPrice;
+}
+
+predL += pL;
+predB += pB;
+predC += pL * pool.collateralFactor;
+
+
 
         // interest accrual & new rates
         let blocksElapsed;
@@ -570,6 +587,17 @@ document.getElementById('portfolio-summary').innerText =
         setStatus('❌ ' + (e.reason || e.message));
       }
     }
+    async function fetchEthPriceUSD() {
+  const priceFeed = new ethers.Contract(
+    "0x5f4ec3df9cbd43714fe2740f5e3616155c5b8419", // Chainlink ETH/USD
+    ["function latestAnswer() view returns (int256)"],
+    provider
+  );
+  const priceRaw = await priceFeed.latestAnswer();
+  const price = parseFloat(ethers.utils.formatUnits(priceRaw, 8));
+  window.dashboardState.ethPriceUSD = price;
+}
+
   </script>
 </body>
 </html>
