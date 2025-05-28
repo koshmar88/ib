@@ -61,6 +61,65 @@ td[data-label="Actions"], th[data-label="Actions"] {
   
   @media (max-width: 800px) {
   body { padding: 5px; }
+  table, thead, tbody, th, td, tr {
+    display: block;
+    width: 100%;
+  }
+  thead { display: none; }
+
+  tr {
+    margin-bottom: 15px;
+    border-bottom: 2px solid #333;
+  }
+
+  td {
+    border: none;
+    position: relative;
+    padding-left: 50%;
+    box-sizing: border-box;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: unset !important;
+  }
+
+  td:before {
+    position: absolute;
+    left: 10px;
+    top: 12px;
+    width: 45%;
+    white-space: nowrap;
+    font-weight: bold;
+    color: #aaa;
+    content: attr(data-label);
+  }
+
+  td[data-label="Actions"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: flex-start;
+    padding-left: 10px;
+  }
+
+  td[data-label="Actions"] button {
+    min-width: 90px;
+    font-size: 0.9em;
+    flex: 1 1 auto;
+  }
+
+  .button-group button, input {
+    width: 95%;
+    margin: 4px 0;
+  }
+
+  #portfolio-summary,
+  #credit-usage,
+  #predicted-usage {
+    font-size: 1em;
+  }
+}
+@media (max-width: 800px) {
+  body { padding: 5px; }
   table, thead, tbody, th, td, tr { display: block; width: 100%; }
   thead { display: none; }
   tr { margin-bottom: 15px; border-bottom: 2px solid #333; }
