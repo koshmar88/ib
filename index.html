@@ -6,30 +6,51 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <style>
-    th, td {
-  border:1px solid #333;
-  padding:8px 8px;
-  text-align:left;
-  max-width: 150px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  
+.table-wrapper {
+  overflow-x: auto;
+  width: 100%;
 }
+
+table {
+  width: 1400px; /* или auto — по твоему желанию */
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
 th, td {
-  border:1px solid #333;
-  padding:8px 8px;
-  text-align:left;
-  max-width: 150px;
+  border: 1px solid #333;
+  padding: 8px;
+  text-align: left;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-  }
+}
 
-  .table-wrapper {
-    overflow-x: auto;
-    width: 100%;
-  }
+th:nth-child(1), td:nth-child(1) { width: 60px; }   /* Token */
+th:nth-child(2), td:nth-child(2) { width: 120px; }  /* Liquidity */
+th:nth-child(3), td:nth-child(3) { width: 160px; }  /* Total Supply */
+th:nth-child(4), td:nth-child(4) { width: 110px; }  /* Supply APY */
+th:nth-child(5), td:nth-child(5) { width: 160px; }  /* Total Borrow */
+th:nth-child(6), td:nth-child(6) { width: 110px; }  /* Borrow APY */
+th:nth-child(7), td:nth-child(7) { width: 140px; }  /* Reserves */
+th:nth-child(8), td:nth-child(8) { width: 100px; }  /* Utilization */
+th:nth-child(9), td:nth-child(9) { width: 150px; }  /* Your Lend */
+th:nth-child(10), td:nth-child(10) { width: 150px; } /* Your Borrow */
+th:nth-child(11), td:nth-child(11) { width: 250px; } /* Actions */
+
+td[data-label="Actions"], th[data-label="Actions"] {
+  vertical-align: top;
+  word-break: break-word;
+  white-space: normal;
+}
+td[data-label="Actions"] button,
+td[data-label="Actions"] input {
+  font-size: 12px;
+  padding: 4px 6px;
+  margin: 2px 0;
+  width: 100%;
+  box-sizing: border-box;
+}
 
 
 input {
