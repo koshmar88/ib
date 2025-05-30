@@ -284,6 +284,15 @@ if (p.name === 'ETH') {
         const fmt = v => Number(ethers.utils.formatUnits(v, p.decimals)).toLocaleString(undefined, {
   maximumFractionDigits: 2
 });
+const usdFmt = (v) => `$${v.toLocaleString(undefined, {maximumFractionDigits: 2})}`;
+
+const fmtWithUSD = (valBN, valUSD) => {
+  const native = Number(ethers.utils.formatUnits(valBN, p.decimals)).toFixed(4);
+  return p.name === 'ETH'
+    ? `${native} ${p.name}<br/><small style="color:#aaa">(${usdFmt(valUSD)})</small>`
+    : `${usdFmt(valUSD)} ${p.name}`;
+};
+
 
 const borrowText = p.name === 'ETH'
   ? `${parseFloat(ethers.utils.formatUnits(bBal, p.decimals)).toFixed(4)} ${p.name}<br/><small style="color:#aaa">($${usdBorrow.toLocaleString(undefined,{maximumFractionDigits:2})})</small>`
@@ -292,14 +301,14 @@ const borrowText = p.name === 'ETH'
 const row = document.createElement('tr');
 row.innerHTML = `
   <td data-label="Token">${p.name}</td>
-  <td data-label="Liquidity" class="liquidity-value">${fmt(cash)}</td>
-  <td data-label="Total Supply">${fmt(totalSupply)}</td>
+  <td data-label="Liquidity" class="liquidity-value">${fmtWithUSD(cash, p.name === 'ETH' ? parseFloat(ethers.utils.formatUnits(cash, p.decimals)) * window.dashboardState.ethPriceUSD : parseFloat(ethers.utils.formatUnits(cash, p.decimals)))}</td>
+  <td data-label="Total Supply">${fmtWithUSD(totalSupply, p.name === 'ETH' ? parseFloat(ethers.utils.formatUnits(totalSupply, p.decimals)) * window.dashboardState.ethPriceUSD : parseFloat(ethers.utils.formatUnits(totalSupply, p.decimals)))}</td>
   <td data-label="Supply APY" class="supply-apy">${(supplyAPY*100).toFixed(2)}% <em id="pred-supply-${p.address}"></em></td>
-  <td data-label="Total Borrow">${fmt(borrows)}</td>
+  <td data-label="Total Borrow">${fmtWithUSD(borrows, p.name === 'ETH' ? parseFloat(ethers.utils.formatUnits(borrows, p.decimals)) * window.dashboardState.ethPriceUSD : parseFloat(ethers.utils.formatUnits(borrows, p.decimals)))}</td>
   <td data-label="Borrow APY" class="borrow-apy">${(borrowAPY*100).toFixed(2)}% <em id="pred-borrow-${p.address}"></em></td>
-  <td data-label="Reserves">${fmt(reserves)}</td>
+  <td data-label="Reserves">${fmtWithUSD(reserves, p.name === 'ETH' ? parseFloat(ethers.utils.formatUnits(reserves, p.decimals)) * window.dashboardState.ethPriceUSD : parseFloat(ethers.utils.formatUnits(reserves, p.decimals)))}</td>
   <td data-label="Utilization">${utilization.toFixed(2)}%</td>
-  <td data-label="Your Lend" class="your-lend">${usdLend.toLocaleString(undefined,{maximumFractionDigits:2})}</td>
+  <td data-label="Your Lend" class="your-lend">${fmtWithUSD(cBal.mul(exRate).div("1000000000000000000"), usdLend)}</td>
   <td data-label="Your Borrow" class="your-borrow">${borrowText}</td>
   <td data-label="Actions">
     <input id="supply-${p.address}" placeholder="Supply"/><button onclick="supply('${p.address}',${p.decimals})">Supply</button><br/>
@@ -309,6 +318,7 @@ row.innerHTML = `
     <button onclick="preview('${p.address}')">Preview</button>
     <button onclick="updatePool('${p.address}')">Update</button>
   </td>`;
+
 tbody.appendChild(row);
       }catch(e){ console.error(e); }}
       const myNet = totL - totB;
