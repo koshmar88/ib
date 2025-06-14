@@ -331,7 +331,6 @@ window.dashboardState = {
       } catch (e) {
         assetsIn = pools.map(p => p.address.toLowerCase());
       }
-    }
 
       const tbody = document.getElementById('data-body');
       tbody.innerHTML = ''; // ОЧИСТИТЬ ПЕРЕД ДОБАВЛЕНИЕМ СТРОК
@@ -452,7 +451,8 @@ tbody.appendChild(row);
   renderHistoryTable();
 } catch (e) {
   console.warn("Error saving history", e);
-
+}
+    }
     function updatePredictedPortfolio(myNet, netAPY, daily, hourly) {
       let el = document.getElementById('predicted-portfolio');
       if (!el) {
@@ -529,6 +529,7 @@ tbody.appendChild(row);
       } catch (e) {
         assetsIn = pools.map(p => p.address.toLowerCase());
       }
+  
       for (const pool of pools) {
         const stats = window.dashboardState.poolStats[pool.address];
         // parse user inputs
