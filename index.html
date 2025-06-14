@@ -572,28 +572,29 @@ if (assetsIn.includes(pool.address.toLowerCase())) {
 
         // predicted underlying
         let pL = usdLend;
-        let pB = usdBorrow;
         if (!sup.isZero()) pL += parseFloat(ethers.utils.formatUnits(sup, pool.decimals));
         if (!wit.isZero()) {
           pL -= parseFloat(ethers.utils.formatUnits(wit, pool.decimals));
           if (pL < 0) pL = 0;
         }
+        // pB — только borrow и repay
+        let pB = usdBorrow;
         if (!bor.isZero()) pB += parseFloat(ethers.utils.formatUnits(bor, pool.decimals));
         if (!rep.isZero()) {
           pB -= parseFloat(ethers.utils.formatUnits(rep, pool.decimals));
           if (pB < 0) pB = 0;
         }
-
- if (pool.name === 'ETH') {
-  const ethPrice = window.dashboardState.ethPriceUSD;
-  pL *= ethPrice;
-  pB *= ethPrice;
-}
-
-predL += pL;
-predB += pB;
-predC += pL * pool.collateralFactor;
-
+        if (pool.name === 'ETH') {
+          const ethPrice = window.dashboardState.ethPriceUSD;
+          pL *= ethPrice;
+          pB *= ethPrice;
+        }
+        predL += pL;
+        predB += pB;
+        // Важно: predC += pL * pool.collateralFactor; // только supply!
+        if (assetsIn.includes(pool.address.toLowerCase())) {
+          predC += pL * pool.collateralFactor;
+        }
 
 
         // interest accrual & new rates
