@@ -451,10 +451,6 @@ tbody.appendChild(row);
   renderHistoryTable();
 } catch (e) {
   console.warn("Error saving history", e);
-}
-      updateUsage(curPct, curPct);
-      clearPredAPY(); setStatus('');
-    }
 
     function updatePredictedPortfolio(myNet, netAPY, daily, hourly) {
       let el = document.getElementById('predicted-portfolio');
@@ -526,16 +522,12 @@ tbody.appendChild(row);
       const user = await signer.getAddress();
       let totL = 0, totB = 0, totC = 0, wS = 0, wB = 0;
       let predL = 0, predB = 0, predC = 0, predWS = 0, predWB = 0;
-
-      // --- Добавьте это: ---
       let assetsIn = [];
       try {
         assetsIn = (await getAssetsIn(user)).map(a => a.toLowerCase());
       } catch (e) {
         assetsIn = pools.map(p => p.address.toLowerCase());
       }
-      // ----------------------
-
       for (const pool of pools) {
         const stats = window.dashboardState.poolStats[pool.address];
         // parse user inputs
@@ -664,17 +656,15 @@ if (assetsIn.includes(pool.address.toLowerCase()) && usdLend > 0) {
       updatePredictedPortfolio(myNet, netAPY, daily, hourly);
 
       // usage
-const healthFactorPred = predB > 0 ? predC / predB : Infinity;
-const predPct = healthFactorPred > 0 ? 100 / healthFactorPred : 0;
+const liquidationIncentive = 1.05;
+const realBorrowLimitPred = predC / liquidationIncentive;
+const predUsage = realBorrowLimitPred > 0 ? (predB / realBorrowLimitPred) * 100 : 0;
 
-const healthFactorCur = window.dashboardState.totalBorrowUSD > 0
-  ? window.dashboardState.totalCapacityUSD / window.dashboardState.totalBorrowUSD
-  : Infinity;
-const currentPct = healthFactorCur > 0 ? 100 / healthFactorCur : 0;
+const realBorrowLimitCur = window.dashboardState.totalCapacityUSD / liquidationIncentive;
+const curUsage = realBorrowLimitCur > 0 ? (window.dashboardState.totalBorrowUSD / realBorrowLimitCur) * 100 : 0;
 
-updateUsage(currentPct, predPct);
-      setStatus('✅ Preview all calculated');
-    }
+updateUsage(curUsage, predUsage);
+setStatus('✅ Preview all calculated');
 
     async function supply(addr,dec){
       const val = document.getElementById(`supply-${addr}`).value;
