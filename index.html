@@ -424,7 +424,7 @@ tbody.appendChild(row);
       const netAPY = myNet !== 0 ? (wS - wB) / Math.abs(myNet) : 0;
       const daily = myNet * netAPY / 365;
       const hourly = daily / 24;
-      
+      const borrowLimit = totC;
     const liquidationIncentive = 1.05; // или получите из Comptroller, если хотите динамически
     const realBorrowLimit = borrowLimit / liquidationIncentive;
     const borrowAvailable = Math.max(realBorrowLimit - totB, 0);
