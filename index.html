@@ -579,6 +579,13 @@ if (assetsIn.includes(pool.address.toLowerCase())) {
           pL -= parseFloat(ethers.utils.formatUnits(wit, pool.decimals));
           if (pL < 0) pL = 0;
         }
+        // borrow и repay не влияют на collateral!
+        if (pool.name === 'ETH') {
+          const ethPrice = window.dashboardState.ethPriceUSD;
+          pL *= ethPrice;
+        }
+        predL += pL;
+
         // pB — только borrow и repay
         let pB = usdBorrow;
         if (!bor.isZero()) pB += parseFloat(ethers.utils.formatUnits(bor, pool.decimals));
@@ -588,11 +595,10 @@ if (assetsIn.includes(pool.address.toLowerCase())) {
         }
         if (pool.name === 'ETH') {
           const ethPrice = window.dashboardState.ethPriceUSD;
-          pL *= ethPrice;
           pB *= ethPrice;
         }
-        predL += pL;
         predB += pB;
+
         // Важно: predC += pL * pool.collateralFactor; // только supply!
         if (assetsIn.includes(pool.address.toLowerCase())) {
           predC += pL * pool.collateralFactor;
