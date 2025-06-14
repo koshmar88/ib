@@ -309,7 +309,7 @@ window.dashboardState = {
       setStatus('🔄 Loading…');
       await fetchEthPriceUSD();
 
-      const user = await signer.getAddress(); // ← добавьте эту строку
+      const user = await signer.getAddress();
 
       const abi=[
         "function getCash() view returns(uint256)",
@@ -330,90 +330,94 @@ window.dashboardState = {
       } catch (e) {
         assetsIn = pools.map(p => p.address.toLowerCase());
       }
-for(const p of pools){ try{
-        const c = new ethers.Contract(p.address, abi, provider);
-        const [cash, borrows, reserves, brRaw, srRaw, exRate, cBal, bBal, modelAddr, resFact] =
-          await Promise.all([
-            c.getCash(), c.totalBorrows(), c.totalReserves(),
-            c.borrowRatePerBlock(), c.supplyRatePerBlock(),
-            c.exchangeRateStored(), c.balanceOf(await signer.getAddress()),
-            c.borrowBalanceStored(await signer.getAddress()),
-            c.interestRateModel(), c.reserveFactorMantissa()
-          ]);
-        const brPB = parseFloat(ethers.utils.formatUnits(brRaw,18));
-        const srPB = parseFloat(ethers.utils.formatUnits(srRaw,18));
-        const rf = parseFloat(ethers.utils.formatUnits(resFact,18));
-        const borrowAPY = (1+brPB)**blocksPerYear - 1;
-        const supplyAPY = (1+srPB)**blocksPerYear - 1;
-        const totalSupply = cash.add(borrows).sub(reserves);
-        const utilization = borrows.mul(10000).div(totalSupply).toNumber()/100;
-       let usdLend = parseFloat(ethers.utils.formatUnits(
-  cBal.mul(exRate).div(ethers.BigNumber.from("1000000000000000000")),
-  p.decimals
-));
 
-let usdBorrow = parseFloat(ethers.utils.formatUnits(bBal, p.decimals));
+      const tbody = document.getElementById('data-body');
+      tbody.innerHTML = ''; // ОЧИСТИТЬ ПЕРЕД ДОБАВЛЕНИЕМ СТРОК
 
-if (p.name === 'ETH') {
-  const ethPrice = window.dashboardState.ethPriceUSD;
-  usdLend *= ethPrice;
-  usdBorrow *= ethPrice;
-}
+      for(const p of pools) {
+        try {
+          const c = new ethers.Contract(p.address, abi, provider);
+          const [cash, borrows, reserves, brRaw, srRaw, exRate, cBal, bBal, modelAddr, resFact] =
+            await Promise.all([
+              c.getCash(), c.totalBorrows(), c.totalReserves(),
+              c.borrowRatePerBlock(), c.supplyRatePerBlock(),
+              c.exchangeRateStored(), c.balanceOf(user),
+              c.borrowBalanceStored(user),
+              c.interestRateModel(), c.reserveFactorMantissa()
+            ]);
+          const brPB = parseFloat(ethers.utils.formatUnits(brRaw,18));
+          const srPB = parseFloat(ethers.utils.formatUnits(srRaw,18));
+          const rf = parseFloat(ethers.utils.formatUnits(resFact,18));
+          const borrowAPY = (1+brPB)**blocksPerYear - 1;
+          const supplyAPY = (1+srPB)**blocksPerYear - 1;
+          const totalSupply = cash.add(borrows).sub(reserves);
+          const utilization = borrows.mul(10000).div(totalSupply).toNumber()/100;
+          let usdLend = parseFloat(ethers.utils.formatUnits(
+            cBal.mul(exRate).div(ethers.BigNumber.from("1000000000000000000")),
+            p.decimals
+          ));
+          let usdBorrow = parseFloat(ethers.utils.formatUnits(bBal, p.decimals));
+          if (p.name === 'ETH') {
+            const ethPrice = window.dashboardState.ethPriceUSD;
+            usdLend *= ethPrice;
+            usdBorrow *= ethPrice;
+          }
+          totL+=usdLend; totB+=usdBorrow;
+          if (assetsIn.includes(p.address.toLowerCase())) {
+            totC+=usdLend*p.collateralFactor;
+          }
+          wS+=usdLend*supplyAPY; wB+=usdBorrow*borrowAPY;
+          window.dashboardState.poolStats[p.address] = {
+            cash, borrows, reserves, modelAddr, resFact,
+            brPB, srPB, rf,
+            supplyAPY, borrowAPY,
+            util: utilization/100,
+            decimals: p.decimals,
+            collateralFactor: p.collateralFactor
+          };
+          const fmt = v => Number(ethers.utils.formatUnits(v, p.decimals)).toLocaleString(undefined, {
+            maximumFractionDigits: 2
+          });
+          const usdFmt = (v) => `$${v.toLocaleString(undefined, {maximumFractionDigits: 2})}`;
+          const fmtWithUSD = (valBN, valUSD) => {
+            const native = Number(ethers.utils.formatUnits(valBN, p.decimals)).toFixed(4);
+            return p.name === 'ETH'
+              ? `${native} ${p.name}<br/><small style="color:#aaa">(${usdFmt(valUSD)})</small>`
+              : `${usdFmt(valUSD)} ${p.name}`;
+          };
+          const borrowText = p.name === 'ETH'
+            ? `${parseFloat(ethers.utils.formatUnits(bBal, p.decimals)).toFixed(4)} ${p.name}<br/><small style="color:#aaa">($${usdBorrow.toLocaleString(undefined,{maximumFractionDigits:2})})</small>`
+            : `${usdBorrow.toLocaleString(undefined,{maximumFractionDigits:2})} ${p.name}`;
 
+          // --- Collateral indication and enable button ---
+          const isCollateral = assetsIn.includes(p.address.toLowerCase());
+          const collateralCell = isCollateral
+            ? '<span style="color:#2ecc71;font-weight:bold;">✔ Enabled</span>'
+            : `<button onclick="enableCollateral('${p.address}')">Enable</button>`;
 
-        totL+=usdLend; totB+=usdBorrow;
-if (assetsIn.includes(p.address.toLowerCase())) {
-  totC+=usdLend*p.collateralFactor;
-}
-  wS+=usdLend*supplyAPY; wB+=usdBorrow*borrowAPY;
-        window.dashboardState.poolStats[p.address] = {
-          cash, borrows, reserves, modelAddr, resFact,
-          brPB, srPB, rf,
-          supplyAPY, borrowAPY,
-          util: utilization/100,
-          decimals: p.decimals,
-          collateralFactor: p.collateralFactor
-        };
-        const fmt = v => Number(ethers.utils.formatUnits(v, p.decimals)).toLocaleString(undefined, {
-  maximumFractionDigits: 2
-});
-const usdFmt = (v) => `$${v.toLocaleString(undefined, {maximumFractionDigits: 2})}`;
-
-const fmtWithUSD = (valBN, valUSD) => {
-  const native = Number(ethers.utils.formatUnits(valBN, p.decimals)).toFixed(4);
-  return p.name === 'ETH'
-    ? `${native} ${p.name}<br/><small style="color:#aaa">(${usdFmt(valUSD)})</small>`
-    : `${usdFmt(valUSD)} ${p.name}`;
-};
-
-
-const borrowText = p.name === 'ETH'
-  ? `${parseFloat(ethers.utils.formatUnits(bBal, p.decimals)).toFixed(4)} ${p.name}<br/><small style="color:#aaa">($${usdBorrow.toLocaleString(undefined,{maximumFractionDigits:2})})</small>`
-  : `${usdBorrow.toLocaleString(undefined,{maximumFractionDigits:2})} ${p.name}`;
-
-const row = document.createElement('tr');
-row.innerHTML = `
-  <td data-label="Token">${p.name}</td>
-  <td data-label="Liquidity" class="liquidity-value">${fmtWithUSD(cash, p.name === 'ETH' ? parseFloat(ethers.utils.formatUnits(cash, p.decimals)) * window.dashboardState.ethPriceUSD : parseFloat(ethers.utils.formatUnits(cash, p.decimals)))}</td>
-  <td data-label="Total Supply">${fmtWithUSD(totalSupply, p.name === 'ETH' ? parseFloat(ethers.utils.formatUnits(totalSupply, p.decimals)) * window.dashboardState.ethPriceUSD : parseFloat(ethers.utils.formatUnits(totalSupply, p.decimals)))}</td>
-  <td data-label="Supply APY" class="supply-apy">${(supplyAPY*100).toFixed(2)}% <em id="pred-supply-${p.address}"></em></td>
-  <td data-label="Total Borrow">${fmtWithUSD(borrows, p.name === 'ETH' ? parseFloat(ethers.utils.formatUnits(borrows, p.decimals)) * window.dashboardState.ethPriceUSD : parseFloat(ethers.utils.formatUnits(borrows, p.decimals)))}</td>
-  <td data-label="Borrow APY" class="borrow-apy">${(borrowAPY*100).toFixed(2)}% <em id="pred-borrow-${p.address}"></em></td>
-  <td data-label="Reserves">${fmtWithUSD(reserves, p.name === 'ETH' ? parseFloat(ethers.utils.formatUnits(reserves, p.decimals)) * window.dashboardState.ethPriceUSD : parseFloat(ethers.utils.formatUnits(reserves, p.decimals)))}</td>
-  <td data-label="Utilization">${utilization.toFixed(2)}%</td>
-  <td data-label="Your Lend" class="your-lend">${fmtWithUSD(cBal.mul(exRate).div("1000000000000000000"), usdLend)}</td>
-  <td data-label="Your Borrow" class="your-borrow">${borrowText}</td>
-  <td data-label="Actions">
-    <input id="supply-${p.address}" placeholder="Supply"/><button onclick="supply('${p.address}',${p.decimals})">Supply</button><br/>
-    <input id="withdraw-${p.address}" placeholder="Redeem"/><button onclick="withdraw('${p.address}',${p.decimals})">Redeem</button><br/>
-    <input id="borrow-${p.address}" placeholder="Borrow"/><button onclick="borrow('${p.address}',${p.decimals})">Borrow</button><br/>
-    <input id="repay-${p.address}" placeholder="Repay"/><button onclick="repay('${p.address}',${p.decimals})">Repay</button><br/>
-    <button onclick="preview('${p.address}')">Preview</button>
-    <button onclick="updatePool('${p.address}')">Update</button>
-  </td>`;
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td data-label="Token">${p.name}</td>
+            <td data-label="Liquidity" class="liquidity-value">${fmtWithUSD(cash, p.name === 'ETH' ? parseFloat(ethers.utils.formatUnits(cash, p.decimals)) * window.dashboardState.ethPriceUSD : parseFloat(ethers.utils.formatUnits(cash, p.decimals)))}</td>
+            <td data-label="Total Supply">${fmtWithUSD(totalSupply, p.name === 'ETH' ? parseFloat(ethers.utils.formatUnits(totalSupply, p.decimals)) * window.dashboardState.ethPriceUSD : parseFloat(ethers.utils.formatUnits(totalSupply, p.decimals)))}</td>
+            <td data-label="Supply APY" class="supply-apy">${(supplyAPY*100).toFixed(2)}% <em id="pred-supply-${p.address}"></em></td>
+            <td data-label="Total Borrow">${fmtWithUSD(borrows, p.name === 'ETH' ? parseFloat(ethers.utils.formatUnits(borrows, p.decimals)) * window.dashboardState.ethPriceUSD : parseFloat(ethers.utils.formatUnits(borrows, p.decimals)))}</td>
+            <td data-label="Borrow APY" class="borrow-apy">${(borrowAPY*100).toFixed(2)}% <em id="pred-borrow-${p.address}"></em></td>
+            <td data-label="Reserves">${fmtWithUSD(reserves, p.name === 'ETH' ? parseFloat(ethers.utils.formatUnits(reserves, p.decimals)) * window.dashboardState.ethPriceUSD : parseFloat(ethers.utils.formatUnits(reserves, p.decimals)))}</td>
+            <td data-label="Utilization">${utilization.toFixed(2)}%</td>
+            <td data-label="Your Lend" class="your-lend">${fmtWithUSD(cBal.mul(exRate).div("1000000000000000000"), usdLend)}</td>
+            <td data-label="Your Borrow" class="your-borrow">${borrowText}</td>
+            <td data-label="Actions">
+              <input id="supply-${p.address}" placeholder="Supply"/><button onclick="supply('${p.address}',${p.decimals})">Supply</button><br/>
+              <input id="withdraw-${p.address}" placeholder="Redeem"/><button onclick="withdraw('${p.address}',${p.decimals})">Redeem</button><br/>
+              <input id="borrow-${p.address}" placeholder="Borrow"/><button onclick="borrow('${p.address}',${p.decimals})">Borrow</button><br/>
+              <input id="repay-${p.address}" placeholder="Repay"/><button onclick="repay('${p.address}',${p.decimals})">Repay</button><br/>
+              <button onclick="preview('${p.address}')">Preview</button>
+              <button onclick="updatePool('${p.address}')">Update</button>
+            </td>`;
 
 tbody.appendChild(row);
-      }catch(e){ console.error(e); }}
+        }catch(e){ console.error(e); }}
       const myNet = totL - totB;
 const netAPY = myNet !== 0 ? (wS - wB) / Math.abs(myNet) : 0;
 const daily = myNet * netAPY / 365;
