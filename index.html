@@ -421,18 +421,25 @@ window.dashboardState = {
 tbody.appendChild(row);
         }catch(e){ console.error(e); }}
       const myNet = totL - totB;
-const netAPY = myNet !== 0 ? (wS - wB) / Math.abs(myNet) : 0;
-const daily = myNet * netAPY / 365;
-const hourly = daily / 24;
-const borrowAvailable = Math.max(totC - totB, 0);
-document.getElementById('portfolio-summary').innerText =
-  `Portfolio: $${myNet.toFixed(2)} | Net APY: ${(netAPY*100).toFixed(2)}% | Daily: $${daily.toFixed(2)} | Hourly: $${hourly.toFixed(2)} | Borrow Available: $${borrowAvailable.toFixed(2)}`;
+      const netAPY = myNet !== 0 ? (wS - wB) / Math.abs(myNet) : 0;
+      const daily = myNet * netAPY / 365;
+      const hourly = daily / 24;
+      
+      // Новый расчёт borrowLimit и usage:
+      const borrowLimit = totC; // это лимит, который можно занимать под залог
+      const borrowAvailable = Math.max(borrowLimit - totB, 0);
+      const usage = borrowLimit > 0 ? (totB / borrowLimit) * 100 : 0;
+      
+      document.getElementById('portfolio-summary').innerText =
+        `Portfolio: $${myNet.toFixed(2)} | Net APY: ${(netAPY*100).toFixed(2)}% | Daily: $${daily.toFixed(2)} | Hourly: $${hourly.toFixed(2)} | Borrow Available: $${borrowAvailable.toFixed(2)}`;
       updatePredictedPortfolio(myNet, netAPY, daily, hourly);
       window.dashboardState.totalLendUSD = totL;
       window.dashboardState.totalBorrowUSD = totB;
-      window.dashboardState.totalCapacityUSD = totC;
-      const healthFactor = totB > 0 ? totC / totB : Infinity;
-const curPct = healthFactor > 0 ? 100 / healthFactor : 0;
+      window.dashboardState.totalCapacityUSD = borrowLimit;
+      
+      // Используем usage вместо curPct:
+      updateUsage(usage, usage);
+      clearPredAPY(); setStatus('');
       try {
   const history = JSON.parse(localStorage.getItem("earnHistory") || "[]");
   history.push({
