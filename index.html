@@ -667,7 +667,7 @@ const curUsage = realBorrowLimitCur > 0 ? (window.dashboardState.totalBorrowUSD 
 
 updateUsage(curUsage, predUsage);
 setStatus('✅ Preview all calculated');
-
+    }
     async function supply(addr,dec){
       const val = document.getElementById(`supply-${addr}`).value;
       if(!val) return alert('Enter amount');
