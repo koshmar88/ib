@@ -519,6 +519,15 @@ const curPct = healthFactor > 0 ? 100 / healthFactor : 0;
       let totL = 0, totB = 0, totC = 0, wS = 0, wB = 0;
       let predL = 0, predB = 0, predC = 0, predWS = 0, predWB = 0;
 
+      // --- Добавьте это: ---
+      let assetsIn = [];
+      try {
+        assetsIn = (await getAssetsIn(user)).map(a => a.toLowerCase());
+      } catch (e) {
+        assetsIn = pools.map(p => p.address.toLowerCase());
+      }
+      // ----------------------
+
       for (const pool of pools) {
         const stats = window.dashboardState.poolStats[pool.address];
         // parse user inputs
