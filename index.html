@@ -364,7 +364,7 @@ window.dashboardState = {
             usdBorrow *= ethPrice;
           }
           totL+=usdLend; totB+=usdBorrow;
-          if (assetsIn.includes(p.address.toLowerCase())) {
+          if (assetsIn.includes(p.address.toLowerCase()) && usdLend > 0) {
             totC+=usdLend*p.collateralFactor;
           }
           wS+=usdLend*supplyAPY; wB+=usdBorrow*borrowAPY;
@@ -566,7 +566,7 @@ const curPct = healthFactor > 0 ? 100 / healthFactor : 0;
 
         totL += usdLend;
         totB += usdBorrow;
-if (assetsIn.includes(pool.address.toLowerCase())) {
+if (assetsIn.includes(pool.address.toLowerCase()) && usdLend > 0) {
   totC += usdLend * pool.collateralFactor;
 }
         wS += usdLend * stats.supplyAPY;
@@ -600,7 +600,7 @@ if (assetsIn.includes(pool.address.toLowerCase())) {
         predB += pB;
 
         // Важно: predC += pL * pool.collateralFactor; // только supply!
-        if (assetsIn.includes(pool.address.toLowerCase())) {
+        if (assetsIn.includes(pool.address.toLowerCase()) && usdLend > 0) {
           predC += pL * pool.collateralFactor;
         }
 
