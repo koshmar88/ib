@@ -229,6 +229,7 @@ button:hover {
         <th>Your Lend</th>
         <th>Your Borrow</th>
         <th>Actions</th>
+        <th>Collateral</th>
       </tr>
     </thead>
     <tbody id="data-body"></tbody>
@@ -414,7 +415,8 @@ window.dashboardState = {
               <input id="repay-${p.address}" placeholder="Repay"/><button onclick="repay('${p.address}',${p.decimals})">Repay</button><br/>
               <button onclick="preview('${p.address}')">Preview</button>
               <button onclick="updatePool('${p.address}')">Update</button>
-            </td>`;
+            </td>
+            <td data-label="Collateral">${collateralCell}</td>`;
 
 tbody.appendChild(row);
         }catch(e){ console.error(e); }}
@@ -773,6 +775,22 @@ async function getAssetsIn(address) {
     provider
   );
   return await comptroller.getAssetsIn(address);
+}
+async function enableCollateral(addr) {
+  if (!signer) return setStatus('❌ Connect wallet first');
+  setStatus('⏳ Enabling collateral...');
+  try {
+    const comptroller = new ethers.Contract(
+      "0xAB1c342C7bf5Ec5F02ADEA1c2270670bCa144CbB",
+      ["function enterMarkets(address[]) returns (uint256[])"],
+      signer
+    );
+    await (await comptroller.enterMarkets([addr])).wait();
+    setStatus('✅ Collateral enabled');
+    loadPoolData();
+  } catch(e) {
+    setStatus('❌ ' + (e.reason || e.message));
+  }
 }
   </script>
 </body>
