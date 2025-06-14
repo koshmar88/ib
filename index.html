@@ -322,8 +322,13 @@ window.dashboardState = {
         "function reserveFactorMantissa() view returns(uint256)"
       ];
       let totL=0, totB=0, totC=0, wS=0, wB=0;
-      const tbody = document.getElementById('data-body'); tbody.innerHTML = '';
-      for(const p of pools){ try{
+let assetsIn = [];
+try {
+  assetsIn = (await getAssetsIn(user)).map(a => a.toLowerCase());
+} catch (e) {
+  assetsIn = pools.map(p => p.address.toLowerCase());
+}
+for(const p of pools){ try{
         const c = new ethers.Contract(p.address, abi, provider);
         const [cash, borrows, reserves, brRaw, srRaw, exRate, cBal, bBal, modelAddr, resFact] =
           await Promise.all([
@@ -354,7 +359,11 @@ if (p.name === 'ETH') {
 }
 
 
-        totL+=usdLend; totB+=usdBorrow; totC+=usdLend*p.collateralFactor; wS+=usdLend*supplyAPY; wB+=usdBorrow*borrowAPY;
+        totL+=usdLend; totB+=usdBorrow;
+if (assetsIn.includes(p.address.toLowerCase())) {
+  totC+=usdLend*p.collateralFactor;
+}
+  wS+=usdLend*supplyAPY; wB+=usdBorrow*borrowAPY;
         window.dashboardState.poolStats[p.address] = {
           cash, borrows, reserves, modelAddr, resFact,
           brPB, srPB, rf,
@@ -540,7 +549,9 @@ const curPct = healthFactor > 0 ? 100 / healthFactor : 0;
 
         totL += usdLend;
         totB += usdBorrow;
-        totC += usdLend * pool.collateralFactor;
+if (assetsIn.includes(pool.address.toLowerCase())) {
+  totC += usdLend * pool.collateralFactor;
+}
         wS += usdLend * stats.supplyAPY;
         wB += usdBorrow * stats.borrowAPY;
 
@@ -739,7 +750,14 @@ updateUsage(currentPct, predPct);
   const price = parseFloat(ethers.utils.formatUnits(priceRaw, 8));
   window.dashboardState.ethPriceUSD = price;
 }
-
+async function getAssetsIn(address) {
+  const comptroller = new ethers.Contract(
+    "0xAB1c342C7bf5Ec5F02ADEA1c2270670bCa144CbB",
+    ["function getAssetsIn(address) view returns (address[])"],
+    provider
+  );
+  return await comptroller.getAssetsIn(address);
+}
   </script>
 </body>
 </html>
