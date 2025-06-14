@@ -309,6 +309,8 @@ window.dashboardState = {
       setStatus('🔄 Loading…');
       await fetchEthPriceUSD();
 
+      const user = await signer.getAddress(); // ← добавьте эту строку
+
       const abi=[
         "function getCash() view returns(uint256)",
         "function totalBorrows() view returns(uint256)",
@@ -322,12 +324,12 @@ window.dashboardState = {
         "function reserveFactorMantissa() view returns(uint256)"
       ];
       let totL=0, totB=0, totC=0, wS=0, wB=0;
-let assetsIn = [];
-try {
-  assetsIn = (await getAssetsIn(user)).map(a => a.toLowerCase());
-} catch (e) {
-  assetsIn = pools.map(p => p.address.toLowerCase());
-}
+      let assetsIn = [];
+      try {
+        assetsIn = (await getAssetsIn(user)).map(a => a.toLowerCase());
+      } catch (e) {
+        assetsIn = pools.map(p => p.address.toLowerCase());
+      }
 for(const p of pools){ try{
         const c = new ethers.Contract(p.address, abi, provider);
         const [cash, borrows, reserves, brRaw, srRaw, exRate, cBal, bBal, modelAddr, resFact] =
