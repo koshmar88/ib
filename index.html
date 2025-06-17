@@ -731,15 +731,15 @@ setStatus('✅ Preview all calculated');
         setStatus('❌ ' + (e.reason || e.message));
       }
     }
-    async function fetchEthPriceUSD() {
-  const priceFeed = new ethers.Contract(
-    "0x5f4ec3df9cbd43714fe2740f5e3616155c5b8419", // Chainlink ETH/USD
-    ["function latestAnswer() view returns (int256)"],
-    provider
-  );
-  const priceRaw = await priceFeed.latestAnswer();
-  const price = parseFloat(ethers.utils.formatUnits(priceRaw, 8));
-  window.dashboardState.ethPriceUSD = price;
+async function fetchEthPriceUSD() {
+  try {
+    const resp = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT");
+    const data = await resp.json();
+    window.dashboardState.ethPriceUSD = parseFloat(data.price);
+  } catch (e) {
+    setStatus("❌ Не удалось получить цену ETH с Binance");
+    window.dashboardState.ethPriceUSD = 0;
+  }
 }
 async function getAssetsIn(address) {
   const comptroller = new ethers.Contract(
