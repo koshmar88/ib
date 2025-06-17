@@ -6,7 +6,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <style>
-    
 body {
   font-family: 'Segoe UI', sans-serif;
   background: #121212;
@@ -15,13 +14,11 @@ body {
   margin: 0;
   overflow-x: hidden;
 }
-
 h1 {
   text-align: center;
   color: #fff;
   margin-bottom: 10px;
 }
-
 #portfolio-summary,
 #credit-usage,
 #predicted-usage,
@@ -30,18 +27,15 @@ h1 {
   margin: 10px 0;
   font-weight: bold;
 }
-
 .button-group {
   text-align: center;
   margin-bottom: 15px;
 }
-
 .table-wrapper {
   overflow-x: auto;
   width: 100%;
   max-width: 100%;
 }
-
 table {
   width: 100%;
   border-collapse: collapse;
@@ -49,7 +43,6 @@ table {
   margin-top: 20px;
   table-layout: auto;
 }
-
 th, td {
   border: 1px solid #333;
   padding: 8px 12px;
@@ -60,16 +53,13 @@ th, td {
   color: #e0e0e0;
   font-size: 14px;
 }
-
 th {
   background: #2c2c2c;
   font-weight: bold;
 }
-
 tr:nth-child(even) {
   background: #252525;
 }
-
 td[data-label="Actions"] {
   min-width: 160px;
   max-width: 180px;
@@ -77,7 +67,6 @@ td[data-label="Actions"] {
   word-break: break-word;
   padding: 6px;
 }
-
 td[data-label="Actions"] button,
 td[data-label="Actions"] input {
   font-size: 12px;
@@ -86,7 +75,6 @@ td[data-label="Actions"] input {
   width: 100%;
   box-sizing: border-box;
 }
-
 input {
   background: #2c2c2c;
   color: #e0e0e0;
@@ -98,12 +86,10 @@ input {
   max-width: 100%;
   box-sizing: border-box;
 }
-
 .liquidity-value { color: #2ecc71; }
 .supply-apy, .pred-supply { color: yellow; white-space: nowrap; }
 .borrow-apy, .pred-borrow { color: #e74c3c; white-space: nowrap; }
 .your-lend, .your-borrow { color: #9b59b6; font-weight: bold; }
-
 button {
   background: #3b82f6;
   border: none;
@@ -113,11 +99,9 @@ button {
   border-radius: 4px;
   cursor: pointer;
 }
-
 button:hover {
   background: #2563eb;
 }
-
 .progress-container {
   background: #333;
   border-radius: 4px;
@@ -125,30 +109,24 @@ button:hover {
   height: 12px;
   margin: 4px auto;
 }
-
 .progress-bar {
   height: 100%;
   width: 0;
   border-radius: 4px;
   transition: width 0.3s, background-color 0.3s;
 }
-
 /* Mobile responsive styles */
 @media (max-width: 800px) {
   body { padding: 5px; }
-
   table, thead, tbody, th, td, tr {
     display: block;
     width: 100%;
   }
-
   thead { display: none; }
-
   tr {
     margin-bottom: 15px;
     border-bottom: 2px solid #333;
   }
-
   td {
     border: none;
     position: relative;
@@ -158,7 +136,6 @@ button:hover {
     overflow: visible !important;
     text-overflow: unset !important;
   }
-
   td:before {
     position: absolute;
     left: 10px;
@@ -169,7 +146,6 @@ button:hover {
     color: #aaa;
     content: attr(data-label);
   }
-
   td[data-label="Actions"] {
     display: flex;
     flex-wrap: wrap;
@@ -177,30 +153,24 @@ button:hover {
     justify-content: flex-start;
     padding-left: 10px;
   }
-
   td[data-label="Actions"] button {
     min-width: 90px;
     font-size: 0.9em;
     flex: 1 1 auto;
   }
-
   .button-group button,
   input {
     width: 95%;
     margin: 4px 0;
   }
-
   #portfolio-summary,
   #credit-usage,
   #predicted-usage {
     font-size: 1em;
   }
 }
-
 </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  
-
 </head>
 <body>
   <h1>IRON BANK POOLS</h1>
@@ -294,7 +264,7 @@ window.dashboardState = {
       const raw = await signer.getAddress();
       const masked = raw.slice(0,6) + '***' + raw.slice(-4);
       document.getElementById('wallet-status').innerHTML = `<span style="color:#34d399">Connected: ${masked}</span>`;
-      loadPoolData();
+      await loadPoolData();
     }
     function disconnectWallet(){
       provider = signer = null;
@@ -334,7 +304,7 @@ window.dashboardState = {
       }
 
       const tbody = document.getElementById('data-body');
-      tbody.innerHTML = ''; // ОЧИСТИТЬ ПЕРЕД ДОБАВЛЕНИЕМ СТРОК
+      tbody.innerHTML = '';
 
       for(const p of pools) {
         try {
@@ -391,7 +361,6 @@ window.dashboardState = {
             ? `${parseFloat(ethers.utils.formatUnits(bBal, p.decimals)).toFixed(4)} ${p.name}<br/><small style="color:#aaa">($${usdBorrow.toLocaleString(undefined,{maximumFractionDigits:2})})</small>`
             : `${usdBorrow.toLocaleString(undefined,{maximumFractionDigits:2})} ${p.name}`;
 
-          // --- Collateral indication and enable button ---
           const isCollateral = assetsIn.includes(p.address.toLowerCase());
           const collateralCell = isCollateral
             ? '<span style="color:#2ecc71;font-weight:bold;">✔ Enabled</span>'
@@ -426,34 +395,33 @@ tbody.appendChild(row);
       const daily = myNet * netAPY / 365;
       const hourly = daily / 24;
       const borrowLimit = totC;
-    const liquidationIncentive = 1.05; // или получите из Comptroller, если хотите динамически
-    const realBorrowLimit = borrowLimit / liquidationIncentive;
-    const borrowAvailable = Math.max(realBorrowLimit - totB, 0);
-    const usage = realBorrowLimit > 0 ? (totB / realBorrowLimit) * 100 : 0;
+      const liquidationIncentive = 1.05;
+      const realBorrowLimit = borrowLimit / liquidationIncentive;
+      const borrowAvailable = Math.max(realBorrowLimit - totB, 0);
+      const usage = realBorrowLimit > 0 ? (totB / realBorrowLimit) * 100 : 0;
       document.getElementById('portfolio-summary').innerText =
         `Portfolio: $${myNet.toFixed(2)} | Net APY: ${(netAPY*100).toFixed(2)}% | Daily: $${daily.toFixed(2)} | Hourly: $${hourly.toFixed(2)} | Borrow Available: $${borrowAvailable.toFixed(2)}`;
       updatePredictedPortfolio(myNet, netAPY, daily, hourly);
       window.dashboardState.totalLendUSD = totL;
       window.dashboardState.totalBorrowUSD = totB;
       window.dashboardState.totalCapacityUSD = borrowLimit;
-      
-      // Используем usage вместо curPct:
       updateUsage(usage, usage);
       clearPredAPY(); setStatus('');
       try {
-  const history = JSON.parse(localStorage.getItem("earnHistory") || "[]");
-  history.push({
-    date: new Date().toISOString(),
-    net: myNet.toFixed(2),
-    daily: daily.toFixed(2),
-    apy: (netAPY * 100).toFixed(2)
-  });
-  localStorage.setItem("earnHistory", JSON.stringify(history.slice(-30))); // последние 30 записей
-  renderHistoryTable();
-} catch (e) {
-  console.warn("Error saving history", e);
-}
+        const history = JSON.parse(localStorage.getItem("earnHistory") || "[]");
+        history.push({
+          date: new Date().toISOString(),
+          net: myNet.toFixed(2),
+          daily: daily.toFixed(2),
+          apy: (netAPY * 100).toFixed(2)
+        });
+        localStorage.setItem("earnHistory", JSON.stringify(history.slice(-30)));
+        renderHistoryTable();
+      } catch (e) {
+        console.warn("Error saving history", e);
+      }
     }
+
     function updatePredictedPortfolio(myNet, netAPY, daily, hourly) {
       let el = document.getElementById('predicted-portfolio');
       if (!el) {
@@ -466,7 +434,6 @@ tbody.appendChild(row);
         document.getElementById('portfolio-summary').after(el);
       }
       el.innerText = `Predicted Portfolio: $${myNet.toFixed(2)} | Net APY: ${(netAPY*100).toFixed(2)}% | Daily: $${daily.toFixed(2)} | Hourly: $${hourly.toFixed(2)}`;
-      
     }
 
     async function preview(addr) {
@@ -805,8 +772,13 @@ const comptroller = new ethers.Contract(
 );
 
 async function fetchCollateralFactor(ctokenAddress) {
+  // Comptroller создаём внутри функции, чтобы provider был актуальным!
+  const comptroller = new ethers.Contract(
+    "0xAB1c342C7bf5Ec5F02ADEA1c2270670bCa144CbB",
+    ["function markets(address) view returns (bool, uint256, bool)"],
+    provider
+  );
   const market = await comptroller.markets(ctokenAddress);
-  // market[1] — это collateralFactorMantissa (uint256), делим на 1e18
   return Number(market[1]) / 1e18;
 }
 
@@ -816,7 +788,6 @@ async function updateAllCollateralFactors() {
     p.collateralFactor = await fetchCollateralFactor(p.address);
   }
 }
-
   </script>
 </body>
 </html>
