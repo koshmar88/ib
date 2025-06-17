@@ -799,6 +799,9 @@ async function updateAllCollateralFactors() {
     p.collateralFactor = await fetchCollateralFactor(p.address);
   }
 }
+console.log("USDT supply", usdLend, "collateralFactor", p.collateralFactor);
+console.log("ETH borrow", usdBorrow, "ETH price", window.dashboardState.ethPriceUSD);
+console.log("totC", totC, "totB", totB, "liquidationIncentive", liquidationIncentive, "usage", usage);
   </script>
 </body>
 </html>
