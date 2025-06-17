@@ -309,6 +309,7 @@ window.dashboardState = {
       if(!signer){ setStatus('❌ Connect wallet first'); return; }
       setStatus('🔄 Loading…');
       await fetchEthPriceUSD();
+      await updateAllCollateralFactors();
 
       const user = await signer.getAddress();
 
@@ -520,6 +521,7 @@ tbody.appendChild(row);
       await fetchEthPriceUSD();
       if (!signer) { setStatus('❌ Connect wallet first'); return; }
       setStatus('🔄 Calculating preview…');
+      await updateAllCollateralFactors();
       const user = await signer.getAddress();
       let totL = 0, totB = 0, totC = 0, wS = 0, wB = 0;
       let predL = 0, predB = 0, predC = 0, predWS = 0, predWB = 0;
@@ -807,6 +809,14 @@ async function fetchCollateralFactor(ctokenAddress) {
   // market[1] — это collateralFactorMantissa (uint256), делим на 1e18
   return Number(market[1]) / 1e18;
 }
+
+// Получить collateralFactor для всех пулов
+async function updateAllCollateralFactors() {
+  for (const p of pools) {
+    p.collateralFactor = await fetchCollateralFactor(p.address);
+  }
+}
+
   </script>
 </body>
 </html>
