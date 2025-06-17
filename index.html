@@ -280,6 +280,7 @@ window.dashboardState = {
       setStatus('🔄 Loading…');
       await fetchEthPriceUSD();
       await updateAllCollateralFactors();
+      window.dashboardState.liquidationIncentive = await fetchLiquidationIncentive();
 
       const user = await signer.getAddress();
 
@@ -395,7 +396,7 @@ tbody.appendChild(row);
       const daily = myNet * netAPY / 365;
       const hourly = daily / 24;
       const borrowLimit = totC;
-      const liquidationIncentive = 1.05;
+      const liquidationIncentive = window.dashboardState.liquidationIncentive || 1.05;
       const realBorrowLimit = borrowLimit / liquidationIncentive;
       const borrowAvailable = Math.max(realBorrowLimit - totB, 0);
       const usage = realBorrowLimit > 0 ? (totB / realBorrowLimit) * 100 : 0;
@@ -489,6 +490,7 @@ tbody.appendChild(row);
       if (!signer) { setStatus('❌ Connect wallet first'); return; }
       setStatus('🔄 Calculating preview…');
       await updateAllCollateralFactors();
+      window.dashboardState.liquidationIncentive = await fetchLiquidationIncentive();
       const user = await signer.getAddress();
       let totL = 0, totB = 0, totC = 0, wS = 0, wB = 0;
       let predL = 0, predB = 0, predC = 0, predWS = 0, predWB = 0;
@@ -627,7 +629,7 @@ if (assetsIn.includes(pool.address.toLowerCase()) && usdLend > 0) {
       updatePredictedPortfolio(myNet, netAPY, daily, hourly);
 
       // usage
-const liquidationIncentive = 1.05;
+const liquidationIncentive = window.dashboardState.liquidationIncentive || 1.05;
 const realBorrowLimitPred = predC / liquidationIncentive;
 const predUsage = realBorrowLimitPred > 0 ? (predB / realBorrowLimitPred) * 100 : 0;
 
@@ -740,6 +742,15 @@ async function fetchEthPriceUSD() {
     setStatus("❌ Не удалось получить цену ETH с Binance");
     window.dashboardState.ethPriceUSD = 0;
   }
+}
+async function fetchLiquidationIncentive() {
+  const comptroller = new ethers.Contract(
+    "0xAB1c342C7bf5Ec5F02ADEA1c2270670bCa144CbB",
+    ["function liquidationIncentiveMantissa() view returns (uint256)"],
+    provider
+  );
+  const mantissa = await comptroller.liquidationIncentiveMantissa();
+  return Number(mantissa) / 1e18;
 }
 async function getAssetsIn(address) {
   const comptroller = new ethers.Contract(
