@@ -252,10 +252,10 @@ window.dashboardState = {
   ethPriceUSD: 0
 };
     const pools=[
-      {name:'USDT',address:'0x48759F220ED983dB51fA7A8C0D2AAb8f3ce4166a',decimals:6,collateralFactor:0.90},
-      {name:'DAI', address:'0x8e595470Ed749b85C6F7669de83EAe304C2ec68F',decimals:18,collateralFactor:0.80},
-      {name:'USDC',address:'0x76Eb2FE28b36B3ee97F3Adae0C69606eeDB2A37c',decimals:6,collateralFactor:0.90},
-      {name:'ETH', address:'0x41c84c0e2EE0b740Cf0d31F63f3B6F627DC6b393',decimals:18,collateralFactor:0.75}
+      {name:'USDT',address:'0x48759F220ED983dB51fA7A8C0D2AAb8f3ce4166a',decimals:6,},
+      {name:'DAI', address:'0x8e595470Ed749b85C6F7669de83EAe304C2ec68F',decimals:18,},
+      {name:'USDC',address:'0x76Eb2FE28b36B3ee97F3Adae0C69606eeDB2A37c',decimals:6,},
+      {name:'ETH', address:'0x41c84c0e2EE0b740Cf0d31F63f3B6F627DC6b393',decimals:18,}
     ];
 
     function setStatus(msg){ document.getElementById('status').innerText = msg; }
@@ -795,6 +795,17 @@ async function enableCollateral(addr) {
   } catch(e) {
     setStatus('❌ ' + (e.reason || e.message));
   }
+}
+const comptroller = new ethers.Contract(
+  "0xAB1c342C7bf5Ec5F02ADEA1c2270670bCa144CbB", // адрес Comptroller Iron Bank
+  ["function markets(address) view returns (bool, uint256, bool)"],
+  provider
+);
+
+async function fetchCollateralFactor(ctokenAddress) {
+  const market = await comptroller.markets(ctokenAddress);
+  // market[1] — это collateralFactorMantissa (uint256), делим на 1e18
+  return Number(market[1]) / 1e18;
 }
   </script>
 </body>
