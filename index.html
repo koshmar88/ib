@@ -399,15 +399,11 @@ tbody.appendChild(row);
       const liquidationIncentive = window.dashboardState.liquidationIncentive || 1.05;
       const realBorrowLimit = borrowLimit / liquidationIncentive;
       const borrowAvailable = Math.max(realBorrowLimit - totB, 0);
-      const usage = realBorrowLimit > 0 ? (totB / realBorrowLimit) * 100 : 0;
+      const usage = borrowLimitFromComptroller > 0 ? (totB / borrowLimitFromComptroller) * 100 : 0;
       const userAddress = await signer.getAddress();
       const borrowLimitFromComptroller = await fetchBorrowLimit(userAddress);
       document.getElementById('portfolio-summary').innerText =
         `Portfolio: $${myNet.toFixed(2)} | Net APY: ${(netAPY*100).toFixed(2)}% | Daily: $${daily.toFixed(2)} | Hourly: $${hourly.toFixed(2)} | Borrow Limit: $${borrowLimitFromComptroller.toFixed(2)}`;
-      updatePredictedPortfolio(myNet, netAPY, daily, hourly);
-      window.dashboardState.totalLendUSD = totL;
-      window.dashboardState.totalBorrowUSD = totB;
-      window.dashboardState.totalCapacityUSD = borrowLimit;
       updateUsage(usage, usage);
       clearPredAPY(); setStatus('');
       try {
