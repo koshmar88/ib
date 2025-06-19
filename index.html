@@ -400,14 +400,14 @@ tbody.appendChild(row);
       const realBorrowLimit = borrowLimit / liquidationIncentive;
       const borrowAvailable = Math.max(realBorrowLimit - totB, 0);
       const userAddress = await signer.getAddress();
-      const borrowLimitFromComptroller = await fetchBorrowLimit(userAddress);
-      const maxBorrow = totB + borrowLimitFromComptroller;
-      const usage = maxBorrow > 0 ? (totB / maxBorrow) * 100 : 0;
+      const borrowLimitFromComptroller = await fetchBorrowLimit(userAddress); // USD, сколько еще можно взять
+      const usage = (totB + borrowLimitFromComptroller) > 0 ? (totB / (totB + borrowLimitFromComptroller)) * 100 : 0;
       const ethPrice = window.dashboardState.ethPriceUSD || 0;
-      const borrowLimitETH = ethPrice > 0 ? (maxBorrow / ethPrice) : 0;
+      const borrowLimitETH = ethPrice > 0 ? (borrowLimitFromComptroller / ethPrice) : 0;
+
       document.getElementById('portfolio-summary').innerHTML =
-        `Portfolio: $${myNet.toFixed(2)} | Net APY: ${(netAPY*100).toFixed(2)}% | Daily: $${daily.toFixed(2)} | Hourly: $${hourly.toFixed(2)} | Borrow Limit: $${maxBorrow.toFixed(2)}<br>` +
-        `<span style="color:#ffe066">Borrow Limit: ${borrowLimitETH.toFixed(4)} ETH</span>`;
+        `Portfolio: $${myNet.toFixed(2)} | Net APY: ${(netAPY*100).toFixed(2)}% | Daily: $${daily.toFixed(2)} | Hourly: $${hourly.toFixed(2)} | Borrow Limit: $${borrowLimitFromComptroller.toFixed(2)}<br>` +
+        `<span style="color:#fff;font-size:1.3em;font-weight:bold;">Borrow Limit: ${borrowLimitETH.toFixed(4)} ETH</span>`;
       updateUsage(usage, usage);
       clearPredAPY(); setStatus('');
       try {
