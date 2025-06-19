@@ -399,9 +399,9 @@ tbody.appendChild(row);
       const liquidationIncentive = window.dashboardState.liquidationIncentive || 1.05;
       const realBorrowLimit = borrowLimit / liquidationIncentive;
       const borrowAvailable = Math.max(realBorrowLimit - totB, 0);
-      const usage = borrowLimitFromComptroller > 0 ? (totB / borrowLimitFromComptroller) * 100 : 0;
       const userAddress = await signer.getAddress();
       const borrowLimitFromComptroller = await fetchBorrowLimit(userAddress);
+      const usage = borrowLimitFromComptroller > 0 ? (totB / borrowLimitFromComptroller) * 100 : 0;
       document.getElementById('portfolio-summary').innerText =
         `Portfolio: $${myNet.toFixed(2)} | Net APY: ${(netAPY*100).toFixed(2)}% | Daily: $${daily.toFixed(2)} | Hourly: $${hourly.toFixed(2)} | Borrow Limit: $${borrowLimitFromComptroller.toFixed(2)}`;
       updateUsage(usage, usage);
