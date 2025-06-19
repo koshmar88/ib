@@ -400,8 +400,10 @@ tbody.appendChild(row);
       const realBorrowLimit = borrowLimit / liquidationIncentive;
       const borrowAvailable = Math.max(realBorrowLimit - totB, 0);
       const usage = realBorrowLimit > 0 ? (totB / realBorrowLimit) * 100 : 0;
+      const userAddress = await signer.getAddress();
+      const borrowLimitFromComptroller = await fetchBorrowLimit(userAddress);
       document.getElementById('portfolio-summary').innerText =
-        `Portfolio: $${myNet.toFixed(2)} | Net APY: ${(netAPY*100).toFixed(2)}% | Daily: $${daily.toFixed(2)} | Hourly: $${hourly.toFixed(2)} | Borrow Available: $${borrowAvailable.toFixed(2)}`;
+        `Portfolio: $${myNet.toFixed(2)} | Net APY: ${(netAPY*100).toFixed(2)}% | Daily: $${daily.toFixed(2)} | Hourly: $${hourly.toFixed(2)} | Borrow Limit: $${borrowLimitFromComptroller.toFixed(2)}`;
       updatePredictedPortfolio(myNet, netAPY, daily, hourly);
       window.dashboardState.totalLendUSD = totL;
       window.dashboardState.totalBorrowUSD = totB;
@@ -791,6 +793,17 @@ async function fetchCollateralFactor(ctokenAddress) {
   );
   const market = await comptroller.markets(ctokenAddress);
   return Number(market[1]) / 1e18;
+}
+async function fetchBorrowLimit(userAddress) {
+  const comptroller = new ethers.Contract(
+    "0xAB1c342C7bf5Ec5F02ADEA1c2270670bCa144CbB",
+    ["function getAccountLiquidity(address) view returns (uint256, uint256, uint256)"],
+    provider
+  );
+  const [error, liquidity, shortfall] = await comptroller.getAccountLiquidity(userAddress);
+  if (!error.eq(0)) return 0;
+  // liquidity обычно в 1e18, это и есть borrow limit в USD
+  return Number(ethers.utils.formatUnits(liquidity, 18));
 }
 
 // Получить collateralFactor для всех пулов
