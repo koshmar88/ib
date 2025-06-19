@@ -401,9 +401,13 @@ tbody.appendChild(row);
       const borrowAvailable = Math.max(realBorrowLimit - totB, 0);
       const userAddress = await signer.getAddress();
       const borrowLimitFromComptroller = await fetchBorrowLimit(userAddress);
-      const usage = borrowLimitFromComptroller > 0 ? (totB / borrowLimitFromComptroller) * 100 : 0;
-      document.getElementById('portfolio-summary').innerText =
-        `Portfolio: $${myNet.toFixed(2)} | Net APY: ${(netAPY*100).toFixed(2)}% | Daily: $${daily.toFixed(2)} | Hourly: $${hourly.toFixed(2)} | Borrow Limit: $${borrowLimitFromComptroller.toFixed(2)}`;
+      const maxBorrow = totB + borrowLimitFromComptroller;
+      const usage = maxBorrow > 0 ? (totB / maxBorrow) * 100 : 0;
+      const ethPrice = window.dashboardState.ethPriceUSD || 0;
+      const borrowLimitETH = ethPrice > 0 ? (maxBorrow / ethPrice) : 0;
+      document.getElementById('portfolio-summary').innerHTML =
+        `Portfolio: $${myNet.toFixed(2)} | Net APY: ${(netAPY*100).toFixed(2)}% | Daily: $${daily.toFixed(2)} | Hourly: $${hourly.toFixed(2)} | Borrow Limit: $${maxBorrow.toFixed(2)}<br>` +
+        `<span style="color:#ffe066">Borrow Limit: ${borrowLimitETH.toFixed(4)} ETH</span>`;
       updateUsage(usage, usage);
       clearPredAPY(); setStatus('');
       try {
