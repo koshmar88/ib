@@ -5,6 +5,7 @@
   <title>IRON BANK POOLS</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@walletconnect/web3-provider@1.8.0/dist/umd/index.min.js"></script>
   <style>
 body {
   font-family: 'Segoe UI', sans-serif;
@@ -210,7 +211,7 @@ button:hover {
 
   <script>
     const blocksPerYear = 2628000;
-    let provider, signer;
+    let provider, signer, wcProvider;
     const GREEN='#2ecc71', RED='#e74c3c';
 window.dashboardState = {
   totalLendUSD: 0,
@@ -257,16 +258,30 @@ window.dashboardState = {
 }
 
     async function connectWallet(){
-      if(!window.ethereum){ setStatus('❌ MetaMask not installed'); return; }
-      provider = new ethers.providers.Web3Provider(window.ethereum);
-      await provider.send('eth_requestAccounts', []);
-      signer = provider.getSigner();
-      const raw = await signer.getAddress();
-      const masked = raw.slice(0,6) + '***' + raw.slice(-4);
-      document.getElementById('wallet-status').innerHTML = `<span style="color:#34d399">Connected: ${masked}</span>`;
-      await loadPoolData();
+      try {
+        wcProvider = new WalletConnectProvider.default({
+          rpc: {
+            1: 'https://cloudflare-eth.com'
+          },
+          qrcode: true,
+          pollingInterval: 12000
+        });
+        await wcProvider.enable();
+        provider = new ethers.providers.Web3Provider(wcProvider);
+        signer = provider.getSigner();
+        const raw = await signer.getAddress();
+        const masked = raw.slice(0,6) + '***' + raw.slice(-4);
+        document.getElementById('wallet-status').innerHTML = `<span style="color:#34d399">Connected via WalletConnect: ${masked}</span>`;
+        await loadPoolData();
+      } catch (e) {
+        setStatus('❌ WalletConnect connection failed: ' + e.message);
+      }
     }
     function disconnectWallet(){
+      if (wcProvider) {
+        wcProvider.disconnect();
+        wcProvider = null;
+      }
       provider = signer = null;
       window.dashboardState = { totalLendUSD:0, totalBorrowUSD:0, totalCapacityUSD:0, weightedSupply:0, weightedBorrow:0, poolStats:{} };
       document.getElementById('wallet-status').innerText = '';
