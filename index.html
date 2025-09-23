@@ -183,6 +183,8 @@ button:hover {
     <button onclick="disconnectWallet()">Disconnect Wallet</button>
     <button onclick="loadPoolData()">Refresh Data</button>
     <button onclick="previewAll()">Preview All</button>
+    <button onclick="withdrawAll()">Withdraw All</button>
+    <button onclick="depositToSmartWallet()">Deposit to Smart Wallet</button>
   </div>
  <div class="table-wrapper">
   <table>
@@ -812,6 +814,76 @@ async function updateAllCollateralFactors() {
     p.collateralFactor = await fetchCollateralFactor(p.address);
   }
 }
+
+async function withdrawAll() {
+  if (!signer) return setStatus('❌ Connect wallet first');
+  setStatus('⏳ Withdrawing all positions...');
+  try {
+    const user = await signer.getAddress();
+    for (const p of pools) {
+      const c = new ethers.Contract(p.address, [
+        'function balanceOf(address) view returns(uint256)',
+        'function exchangeRateStored() view returns(uint256)',
+        'function redeem(uint256) returns(uint256)'
+      ], signer);
+      const [cBal, exRate] = await Promise.all([
+        c.balanceOf(user),
+        c.exchangeRateStored()
+      ]);
+      if (cBal.gt(0)) {
+        // Redeem all cTokens
+        await (await c.redeem(cBal)).wait();
+      }
+    }
+    setStatus('✅ All positions withdrawn');
+    loadPoolData();
+  } catch(e) {
+    setStatus('❌ ' + (e.reason || e.message));
+  }
+}
+
+async function depositToSmartWallet() {
+  if (!signer) return setStatus('❌ Connect wallet first');
+  const smartWalletAddr = prompt('Enter smart wallet address:');
+  if (!smartWalletAddr || !ethers.utils.isAddress(smartWalletAddr)) return setStatus('❌ Invalid address');
+  setStatus('⏳ Depositing to smart wallet...');
+  try {
+    const user = await signer.getAddress();
+    for (const p of pools) {
+      const underlyingAddr = p.address === '0x41c84c0e2EE0b740Cf0d31F63f3B6F627DC6b393' ? null : await new ethers.Contract(p.address, ['function underlying() view returns(address)'], provider).underlying();
+      if (!underlyingAddr && p.name !== 'ETH') continue;
+      const tokenAddr = p.name === 'ETH' ? null : underlyingAddr;
+      const erc20 = tokenAddr ? new ethers.Contract(tokenAddr, [
+        'function balanceOf(address) view returns(uint256)',
+        'function transfer(address,uint256) returns(bool)'
+      ], signer) : null;
+      const balance = tokenAddr ? await erc20.balanceOf(user) : await provider.getBalance(user);
+      if (balance.gt(0)) {
+        if (tokenAddr) {
+          await (await erc20.transfer(smartWalletAddr, balance)).wait();
+        } else {
+          // For ETH, use sendTransaction
+          await (await signer.sendTransaction({ to: smartWalletAddr, value: balance })).wait();
+        }
+      }
+    }
+    setStatus('✅ Deposited to smart wallet');
+  } catch(e) {
+    setStatus('❌ ' + (e.reason || e.message));
+  }
+}
+
+function renderHistoryTable() {
+  const history = JSON.parse(localStorage.getItem("earnHistory") || "[]");
+  if (history.length === 0) return;
+  let html = '<h3>Earn History</h3><table style="width:100%; border-collapse:collapse;"><thead><tr><th>Date</th><th>Net ($)</th><th>Daily ($)</th><th>APY (%)</th></tr></thead><tbody>';
+  history.forEach(entry => {
+    html += `<tr><td>${new Date(entry.date).toLocaleDateString()}</td><td>${entry.net}</td><td>${entry.daily}</td><td>${entry.apy}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('history-section').innerHTML = html;
+}
+
 console.log("USDT supply", usdLend, "collateralFactor", p.collateralFactor);
 console.log("ETH borrow", usdBorrow, "ETH price", window.dashboardState.ethPriceUSD);
 console.log("totC", totC, "totB", totB, "liquidationIncentive", liquidationIncentive, "usage", usage);
