@@ -488,6 +488,11 @@ async function preview(addr) {
     return;
   }
   const stats = window.dashboardState.poolStats[addr];
+  if (!stats) {
+    updatePredAPY(addr, NaN, NaN);
+    setStatus("❌ Preview error");
+    return;
+  }
   let blocksElapsed;
   try {
     const { value: accrual } = await tryContractCall(
@@ -516,8 +521,9 @@ async function preview(addr) {
     * brPrev
     * blocksElapsed
     / ethers.parseUnits("1", 18);
-  const newBor = stats.borrows + interest + bor - rep;
-  const newCash = stats.cash + sup - wit + rep - bor;
+  const safeSub = (a, b) => (a > b ? a - b : 0n);
+  const newBor = safeSub(stats.borrows + interest + bor, rep);
+  const newCash = safeSub(stats.cash + sup + rep, wit + bor);
   const newRes = stats.reserves + (
     interest * stats.resFact / ethers.parseUnits("1", 18)
   );
@@ -556,6 +562,9 @@ async function previewAll() {
     setStatus("❌ Connect wallet first");
     return;
   }
+  if (!Object.keys(window.dashboardState.poolStats || {}).length) {
+    await loadPoolData();
+  }
   setStatus("🔄 Calculating preview…");
   await updateAllCollateralFactors();
   window.dashboardState.liquidationIncentive =
@@ -584,6 +593,10 @@ async function previewAll() {
 
   for (const pool of pools) {
     const stats = window.dashboardState.poolStats[pool.address];
+    if (!stats) {
+      console.warn("Missing pool stats for previewAll", pool.address);
+      continue;
+    }
     // parse user inputs
     const parseInput = (id) => {
       const el = document.getElementById(id);
@@ -693,8 +706,9 @@ async function previewAll() {
       * blocksElapsed
       / ethers.parseUnits("1", 18);
 
-    const newBor = stats.borrows + interest + bor - rep;
-    const newCash = stats.cash + sup - wit + rep - bor;
+    const safeSub = (a, b) => (a > b ? a - b : 0n);
+    const newBor = safeSub(stats.borrows + interest + bor, rep);
+    const newCash = safeSub(stats.cash + sup + rep, wit + bor);
     const newRes = stats.reserves + (
       interest * stats.resFact / ethers.parseUnits("1", 18)
     );
