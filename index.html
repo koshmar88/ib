@@ -789,18 +789,52 @@ async function fetchTokenPricesUSD() {
     return;
   }
   const prices = { ...(window.dashboardState.tokenPricesUSD || {}) };
-  await Promise.all(symbols.map(async (symbol) => {
+  const coingeckoIds = {
+    ETHUSDT: 'ethereum',
+    BTCUSDT: 'bitcoin'
+  };
+  for (const symbol of symbols) {
+    let resolved = null;
+    // Primary source: Binance
     try {
       const resp = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`);
-      const data = await resp.json();
-      const parsed = parseFloat(data.price);
-      if (!Number.isNaN(parsed)) {
-        prices[symbol] = parsed;
+      if (resp.ok) {
+        const data = await resp.json();
+        const parsed = parseFloat(data.price);
+        if (!Number.isNaN(parsed) && parsed > 0) {
+          resolved = parsed;
+        }
+      } else {
+        console.warn(`Binance price ${symbol} responded with ${resp.status}`);
       }
-    } catch (e) {
-      console.warn(`Failed to fetch price for ${symbol}`, e);
+    } catch (err) {
+      console.warn(`Binance price fetch failed for ${symbol}`, err);
     }
-  }));
+
+    if (resolved === null && coingeckoIds[symbol]) {
+      try {
+        const id = coingeckoIds[symbol];
+        const resp = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${id}&vs_currencies=usd`);
+        if (resp.ok) {
+          const data = await resp.json();
+          const parsed = data?.[id]?.usd;
+          if (typeof parsed === 'number' && parsed > 0) {
+            resolved = parsed;
+          }
+        } else {
+          console.warn(`Coingecko price ${symbol} responded with ${resp.status}`);
+        }
+      } catch (err) {
+        console.warn(`Coingecko price fetch failed for ${symbol}`, err);
+      }
+    }
+
+    if (resolved !== null) {
+      prices[symbol] = resolved;
+    } else if (!(symbol in prices)) {
+      console.warn(`Price unavailable for ${symbol}, keeping previous value if any.`);
+    }
+  }
   window.dashboardState.tokenPricesUSD = prices;
 }
 async function fetchLiquidationIncentive() {
