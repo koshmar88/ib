@@ -212,7 +212,7 @@ button:hover {
     const blocksPerYear = 2628000;
     let provider, signer;
     const DEFAULT_RPC = 'https://eth.llamarpc.com';
-    let readProvider = new ethers.providers.JsonRpcProvider(DEFAULT_RPC);
+    let readProvider = new ethers.providers.StaticJsonRpcProvider(DEFAULT_RPC, { chainId: 1, name: 'mainnet' });
     const GREEN='#2ecc71', RED='#e74c3c';
 window.dashboardState = {
   totalLendUSD: 0,
@@ -267,6 +267,38 @@ window.dashboardState = {
       }
       return `${baseText} ${pool.name}<br/><small style="color:#aaa">(${usdText})</small>`;
     }
+
+    function availableProviders() {
+      const out = [];
+      if (provider) out.push(provider);
+      if (readProvider) out.push(readProvider);
+      return out;
+    }
+
+    async function tryProviderCall(fn, context) {
+      const providers = availableProviders();
+      if (!providers.length) {
+        throw new Error('No provider available');
+      }
+      let lastError;
+      for (const prov of providers) {
+        try {
+          return { value: await fn(prov), provider: prov };
+        } catch (err) {
+          lastError = err;
+          console.warn(`[ProviderRetry] ${context || 'call'} failed via ${prov.connection?.url || 'wallet provider'}`, err);
+        }
+      }
+      throw lastError || new Error(`All providers failed for ${context || 'call'}`);
+    }
+
+    async function tryContractCall(address, abi, callback, context) {
+      return await tryProviderCall(async (prov) => {
+        const contract = new ethers.Contract(address, abi, prov);
+        return await callback(contract, prov);
+      }, context || `contract ${address}`);
+    }
+
 
     function setStatus(msg){ document.getElementById('status').innerText = msg; }
     function updateUsage(cur,pred){
@@ -357,15 +389,19 @@ window.dashboardState = {
 
       for(const p of pools) {
         try {
-          const c = new ethers.Contract(p.address, abi, readProvider);
-          const [cash, borrows, reserves, brRaw, srRaw, exRate, cBal, bBal, modelAddr, resFact] =
-            await Promise.all([
-              c.getCash(), c.totalBorrows(), c.totalReserves(),
-              c.borrowRatePerBlock(), c.supplyRatePerBlock(),
-              c.exchangeRateStored(), c.balanceOf(user),
-              c.borrowBalanceStored(user),
-              c.interestRateModel(), c.reserveFactorMantissa()
-            ]);
+          const { value: poolValues } = await tryContractCall(
+            p.address,
+            abi,
+            (contract) => Promise.all([
+              contract.getCash(), contract.totalBorrows(), contract.totalReserves(),
+              contract.borrowRatePerBlock(), contract.supplyRatePerBlock(),
+              contract.exchangeRateStored(), contract.balanceOf(user),
+              contract.borrowBalanceStored(user),
+              contract.interestRateModel(), contract.reserveFactorMantissa()
+            ]),
+            `pool core data ${p.name}`
+          );
+          const [cash, borrows, reserves, brRaw, srRaw, exRate, cBal, bBal, modelAddr, resFact] = poolValues;
           const brPB = parseFloat(ethers.utils.formatUnits(brRaw,18));
           const srPB = parseFloat(ethers.utils.formatUnits(srRaw,18));
           const rf = parseFloat(ethers.utils.formatUnits(resFact,18));
@@ -500,6 +536,44 @@ tbody.appendChild(row);
       el.innerText = `Predicted Portfolio: $${myNet.toFixed(2)} | Net APY: ${(netAPY*100).toFixed(2)}% | Daily: $${daily.toFixed(2)} | Hourly: $${hourly.toFixed(2)}`;
     }
 
+    function renderHistoryTable() {
+      const container = document.getElementById('history-section');
+      if (!container) return;
+      let history = [];
+      try {
+        history = JSON.parse(localStorage.getItem("earnHistory") || "[]");
+      } catch {
+        history = [];
+      }
+      if (!history.length) {
+        container.innerHTML = '';
+        return;
+      }
+      const rows = history.slice(-30).reverse().map(item => {
+        return `<tr>
+          <td>${new Date(item.date).toLocaleString()}</td>
+          <td>$${item.net}</td>
+          <td>$${item.daily}</td>
+          <td>${item.apy}%</td>
+        </tr>`;
+      }).join('');
+      container.innerHTML = `
+        <h2 style="text-align:center;margin-top:20px;">History</h2>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Net</th>
+                <th>Daily</th>
+                <th>APY</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`;
+    }
+
     async function preview(addr) {
       const p = pools.find(x => x.address === addr);
       const parseInput = (id, dec) => {
@@ -520,25 +594,41 @@ tbody.appendChild(row);
       const stats = window.dashboardState.poolStats[addr];
       let blocksElapsed;
       try {
-        const accrual = await new ethers.Contract(addr, ['function accrualBlockNumber() view returns(uint256)'], readProvider).accrualBlockNumber();
-        const curr = await readProvider.getBlockNumber();
+        const { value: accrual } = await tryContractCall(
+          addr,
+          ['function accrualBlockNumber() view returns(uint256)'],
+          (contract) => contract.accrualBlockNumber(),
+          `accrualBlockNumber ${p.name}`
+        );
+        const { value: curr } = await tryProviderCall(
+          (prov) => prov.getBlockNumber(),
+          'blockNumber'
+        );
         blocksElapsed = ethers.BigNumber.from(curr).sub(accrual);
         if (blocksElapsed.lt(1)) blocksElapsed = ethers.BigNumber.from(1);
       } catch {
         blocksElapsed = ethers.BigNumber.from(1);
       }
-      const brPrev = await new ethers.Contract(stats.modelAddr, ['function getBorrowRate(uint256,uint256,uint256) view returns(uint256)'], readProvider)
-        .getBorrowRate(stats.cash, stats.borrows, stats.reserves);
+      const { value: brPrev } = await tryContractCall(
+        stats.modelAddr,
+        ['function getBorrowRate(uint256,uint256,uint256) view returns(uint256)'],
+        (contract) => contract.getBorrowRate(stats.cash, stats.borrows, stats.reserves),
+        `borrowRate ${p.name}`
+      );
       const interest = stats.borrows.mul(brPrev).mul(blocksElapsed).div(ethers.utils.parseUnits('1', 18));
       const newBor = stats.borrows.add(interest).add(bor).sub(rep);
       const newCash = stats.cash.add(sup).sub(wit).add(rep).sub(bor);
       const newRes = stats.reserves.add(interest.mul(stats.resFact).div(ethers.utils.parseUnits('1',18)));
       try {
-        const im = new ethers.Contract(stats.modelAddr, ['function getBorrowRate(uint256,uint256,uint256) view returns(uint256)', 'function getSupplyRate(uint256,uint256,uint256,uint256) view returns(uint256)'], readProvider);
-        const [brRaw, srRaw] = await Promise.all([
-          im.getBorrowRate(newCash, newBor, newRes),
-          im.getSupplyRate(newCash, newBor, newRes, stats.resFact)
-        ]);
+        const { value: [brRaw, srRaw] } = await tryContractCall(
+          stats.modelAddr,
+          ['function getBorrowRate(uint256,uint256,uint256) view returns(uint256)', 'function getSupplyRate(uint256,uint256,uint256,uint256) view returns(uint256)'],
+          (contract) => Promise.all([
+            contract.getBorrowRate(newCash, newBor, newRes),
+            contract.getSupplyRate(newCash, newBor, newRes, stats.resFact)
+          ]),
+          `preview rates ${p.name}`
+        );
         const brPB = parseFloat(ethers.utils.formatUnits(brRaw, 18));
         const srPB = parseFloat(ethers.utils.formatUnits(srRaw, 18));
         updatePredAPY(addr, (Math.pow(1 + srPB, blocksPerYear) - 1), (Math.pow(1 + brPB, blocksPerYear) - 1));
@@ -581,16 +671,20 @@ tbody.appendChild(row);
         const wit = parseInput(`withdraw-${pool.address}`);
 
         // current balances
-        const c = new ethers.Contract(pool.address, [
-          'function balanceOf(address) view returns(uint256)',
-          'function borrowBalanceStored(address) view returns(uint256)',
-          'function exchangeRateStored() view returns(uint256)'
-        ], readProvider);
-        const [cBal, bBal, exRate] = await Promise.all([
-          c.balanceOf(user),
-          c.borrowBalanceStored(user),
-          c.exchangeRateStored()
-        ]);
+        const { value: [cBal, bBal, exRate] } = await tryContractCall(
+          pool.address,
+          [
+            'function balanceOf(address) view returns(uint256)',
+            'function borrowBalanceStored(address) view returns(uint256)',
+            'function exchangeRateStored() view returns(uint256)'
+          ],
+          (contract) => Promise.all([
+            contract.balanceOf(user),
+            contract.borrowBalanceStored(user),
+            contract.exchangeRateStored()
+          ]),
+          `balances ${pool.name}`
+        );
         const toBase = (bn) => parseFloat(ethers.utils.formatUnits(bn, pool.decimals));
         const lendUnderlying = cBal.mul(exRate).div(ethers.BigNumber.from('1000000000000000000'));
         const baseLend = toBase(lendUnderlying);
@@ -632,19 +726,28 @@ tbody.appendChild(row);
         // interest accrual & new rates
         let blocksElapsed;
         try {
-          const accrual = await new ethers.Contract(pool.address,
-            ['function accrualBlockNumber() view returns(uint256)'], readProvider
-          ).accrualBlockNumber();
-          const curr = await readProvider.getBlockNumber();
+          const { value: accrual } = await tryContractCall(
+            pool.address,
+            ['function accrualBlockNumber() view returns(uint256)'],
+            (contract) => contract.accrualBlockNumber(),
+            `accrualBlockNumber ${pool.name}`
+          );
+          const { value: curr } = await tryProviderCall(
+            (prov) => prov.getBlockNumber(),
+            'blockNumber'
+          );
           blocksElapsed = ethers.BigNumber.from(curr).sub(accrual);
           if (blocksElapsed.lt(1)) blocksElapsed = ethers.BigNumber.from(1);
         } catch {
           blocksElapsed = ethers.BigNumber.from(1);
         }
         // accrue interest
-        const brPrev = await new ethers.Contract(stats.modelAddr,
-          ['function getBorrowRate(uint256,uint256,uint256) view returns(uint256)'], readProvider
-        ).getBorrowRate(stats.cash, stats.borrows, stats.reserves);
+        const { value: brPrev } = await tryContractCall(
+          stats.modelAddr,
+          ['function getBorrowRate(uint256,uint256,uint256) view returns(uint256)'],
+          (contract) => contract.getBorrowRate(stats.cash, stats.borrows, stats.reserves),
+          `borrowRate ${pool.name}`
+        );
         const interest = stats.borrows
           .mul(brPrev)
           .mul(blocksElapsed)
@@ -656,14 +759,18 @@ tbody.appendChild(row);
           .add(interest.mul(stats.resFact).div(ethers.utils.parseUnits('1',18)));
 
         try {
-          const im = new ethers.Contract(stats.modelAddr, [
-            'function getBorrowRate(uint256,uint256,uint256) view returns(uint256)',
-            'function getSupplyRate(uint256,uint256,uint256,uint256) view returns(uint256)'
-          ], readProvider);
-          const [brRaw, srRaw] = await Promise.all([
-            im.getBorrowRate(newCash, newBor, newRes),
-            im.getSupplyRate(newCash, newBor, newRes, stats.resFact)
-          ]);
+          const { value: [brRaw, srRaw] } = await tryContractCall(
+            stats.modelAddr,
+            [
+              'function getBorrowRate(uint256,uint256,uint256) view returns(uint256)',
+              'function getSupplyRate(uint256,uint256,uint256,uint256) view returns(uint256)'
+            ],
+            (contract) => Promise.all([
+              contract.getBorrowRate(newCash, newBor, newRes),
+              contract.getSupplyRate(newCash, newBor, newRes, stats.resFact)
+            ]),
+            `previewAll rates ${pool.name}`
+          );
           const brPB = parseFloat(ethers.utils.formatUnits(brRaw, 18));
           const srPB = parseFloat(ethers.utils.formatUnits(srRaw, 18));
           const borrowAPYPred = Math.pow(1 + brPB, blocksPerYear) - 1;
@@ -842,21 +949,22 @@ async function fetchTokenPricesUSD() {
   window.dashboardState.tokenPricesUSD = prices;
 }
 async function fetchLiquidationIncentive() {
-  const comptroller = new ethers.Contract(
+  const { value } = await tryContractCall(
     "0xAB1c342C7bf5Ec5F02ADEA1c2270670bCa144CbB",
     ["function liquidationIncentiveMantissa() view returns (uint256)"],
-    readProvider
+    (contract) => contract.liquidationIncentiveMantissa(),
+    'liquidationIncentive'
   );
-  const mantissa = await comptroller.liquidationIncentiveMantissa();
-  return Number(mantissa) / 1e18;
+  return Number(value) / 1e18;
 }
 async function getAssetsIn(address) {
-  const comptroller = new ethers.Contract(
+  const { value } = await tryContractCall(
     "0xAB1c342C7bf5Ec5F02ADEA1c2270670bCa144CbB",
     ["function getAssetsIn(address) view returns (address[])"],
-    readProvider
+    (contract) => contract.getAssetsIn(address),
+    'getAssetsIn'
   );
-  return await comptroller.getAssetsIn(address);
+  return value;
 }
 async function enableCollateral(addr) {
   if (!signer) return setStatus('❌ Connect wallet first');
@@ -875,22 +983,22 @@ async function enableCollateral(addr) {
   }
 }
 async function fetchCollateralFactor(ctokenAddress) {
-  // Comptroller создаём внутри функции, чтобы readProvider был актуальным!
-  const comptroller = new ethers.Contract(
+  const { value: market } = await tryContractCall(
     "0xAB1c342C7bf5Ec5F02ADEA1c2270670bCa144CbB",
     ["function markets(address) view returns (bool, uint256, bool)"],
-    readProvider
+    (contract) => contract.markets(ctokenAddress),
+    `markets(${ctokenAddress})`
   );
-  const market = await comptroller.markets(ctokenAddress);
   return Number(market[1]) / 1e18;
 }
 async function fetchBorrowLimit(userAddress) {
-  const comptroller = new ethers.Contract(
+  const { value } = await tryContractCall(
     "0xAB1c342C7bf5Ec5F02ADEA1c2270670bCa144CbB",
     ["function getAccountLiquidity(address) view returns (uint256, uint256, uint256)"],
-    readProvider
+    (contract) => contract.getAccountLiquidity(userAddress),
+    'getAccountLiquidity'
   );
-  const [error, liquidity, shortfall] = await comptroller.getAccountLiquidity(userAddress);
+  const [error, liquidity, shortfall] = value;
   if (!error.eq(0)) return 0;
   // liquidity обычно в 1e18, это и есть borrow limit в USD
   return Number(ethers.utils.formatUnits(liquidity, 18));
@@ -899,9 +1007,15 @@ async function fetchBorrowLimit(userAddress) {
 // Получить collateralFactor для всех пулов
 async function updateAllCollateralFactors() {
   for (const p of pools) {
-    p.collateralFactor = await fetchCollateralFactor(p.address);
+    try {
+      p.collateralFactor = await fetchCollateralFactor(p.address);
+    } catch (err) {
+      console.warn(`Failed to fetch collateral factor for ${p.name}`, err);
+      p.collateralFactor = p.collateralFactor || 0;
+    }
   }
 }
+renderHistoryTable();
   </script>
 </body>
 </html>
