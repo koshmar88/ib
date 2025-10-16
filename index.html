@@ -211,8 +211,9 @@ button:hover {
   <script>
     const blocksPerYear = 2628000;
     let provider, signer;
-    const DEFAULT_RPC = 'https://eth.llamarpc.com';
+    const DEFAULT_RPC = 'https://mainnet.infura.io/v3/1587274806394c83bac0aa1373372232';
     let readProvider = new ethers.providers.StaticJsonRpcProvider(DEFAULT_RPC, { chainId: 1, name: 'mainnet' });
+    let walletConnected = false;
     const GREEN='#2ecc71', RED='#e74c3c';
 window.dashboardState = {
   totalLendUSD: 0,
@@ -269,10 +270,7 @@ window.dashboardState = {
     }
 
     function availableProviders() {
-      const out = [];
-      if (provider) out.push(provider);
-      if (readProvider) out.push(readProvider);
-      return out;
+      return readProvider ? [readProvider] : [];
     }
 
     async function tryProviderCall(fn, context) {
@@ -333,6 +331,7 @@ window.dashboardState = {
       provider = new ethers.providers.Web3Provider(window.ethereum);
       await provider.send('eth_requestAccounts', []);
       signer = provider.getSigner();
+      walletConnected = true;
       const raw = await signer.getAddress();
       const masked = raw.slice(0,6) + '***' + raw.slice(-4);
       document.getElementById('wallet-status').innerHTML = `<span style="color:#34d399">Connected: ${masked}</span>`;
@@ -340,6 +339,7 @@ window.dashboardState = {
     }
     function disconnectWallet(){
       provider = signer = null;
+      walletConnected = false;
       window.dashboardState = {
         totalLendUSD:0,
         totalBorrowUSD:0,
@@ -353,6 +353,7 @@ window.dashboardState = {
       document.getElementById('data-body').innerHTML = '';
       document.getElementById('portfolio-summary').innerText = 'Portfolio: $0.00 | Net APY: 0% | Daily: $0.00 | Hourly: $0.00';
       updateUsage(0,0); clearPredAPY(); setStatus('');
+      renderHistoryTable();
     }
 
     async function loadPoolData(){
@@ -507,18 +508,20 @@ tbody.appendChild(row);
         `<span style="color:#fff;font-size:1.3em;font-weight:bold;">Borrow Limit: ${borrowLimitETH.toFixed(4)} ETH</span>`;
       updateUsage(usage, usage);
       clearPredAPY(); setStatus('');
-      try {
-        const history = JSON.parse(localStorage.getItem("earnHistory") || "[]");
-        history.push({
-          date: new Date().toISOString(),
-          net: myNet.toFixed(2),
-          daily: daily.toFixed(2),
-          apy: (netAPY * 100).toFixed(2)
-        });
-        localStorage.setItem("earnHistory", JSON.stringify(history.slice(-30)));
-        renderHistoryTable();
-      } catch (e) {
-        console.warn("Error saving history", e);
+      if (walletConnected) {
+        try {
+          const history = JSON.parse(localStorage.getItem("earnHistory") || "[]");
+          history.push({
+            date: new Date().toISOString(),
+            net: myNet.toFixed(2),
+            daily: daily.toFixed(2),
+            apy: (netAPY * 100).toFixed(2)
+          });
+          localStorage.setItem("earnHistory", JSON.stringify(history.slice(-30)));
+          renderHistoryTable();
+        } catch (e) {
+          console.warn("Error saving history", e);
+        }
       }
     }
 
@@ -539,6 +542,10 @@ tbody.appendChild(row);
     function renderHistoryTable() {
       const container = document.getElementById('history-section');
       if (!container) return;
+      if (!walletConnected) {
+        container.innerHTML = '';
+        return;
+      }
       let history = [];
       try {
         history = JSON.parse(localStorage.getItem("earnHistory") || "[]");
