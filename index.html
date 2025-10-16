@@ -218,10 +218,12 @@ window.dashboardState = {
   totalLendUSD: 0,
   totalBorrowUSD: 0,
   totalCapacityUSD: 0,
+  borrowLiquidityUSD: 0,
   weightedSupply: 0,
   weightedBorrow: 0,
   poolStats: {},
-  tokenPricesUSD: {}
+  tokenPricesUSD: {},
+  priceOracle: null
 };
     const pools=[
       {name:'USDT',address:'0x48759F220ED983dB51fA7A8C0D2AAb8f3ce4166a',decimals:6,},
@@ -230,6 +232,38 @@ window.dashboardState = {
       {name:'ETH', address:'0x41c84c0e2EE0b740Cf0d31F63f3B6F627DC6b393',decimals:18,priceSymbol:'ETHUSDT'},
       {name:'WBTC',address:'0x8Fc8BFD80d6A9F17Fb98A373023d72531792B431',decimals:8,priceSymbol:'BTCUSDT'}
     ];
+    const COMPTROLLER_ADDRESS = '0xAB1c342C7bf5Ec5F02ADEA1c2270670bCa144CbB';
+    async function getPriceOracleAddress() {
+      if (window.dashboardState.priceOracle) return window.dashboardState.priceOracle;
+      const { value } = await tryContractCall(
+        COMPTROLLER_ADDRESS,
+        ['function oracle() view returns (address)'],
+        (contract) => contract.oracle(),
+        'oracle address'
+      );
+      window.dashboardState.priceOracle = value;
+      return value;
+    }
+    async function fetchUnderlyingPriceUSD(ctokenAddress, underlyingDecimals) {
+      try {
+        const oracleAddr = await getPriceOracleAddress();
+        const { value } = await tryContractCall(
+          oracleAddr,
+          ['function getUnderlyingPrice(address) view returns (uint256)'],
+          (contract) => contract.getUnderlyingPrice(ctokenAddress),
+          `underlying price ${ctokenAddress}`
+        );
+        const mantissa = ethers.BigNumber.from(value);
+        const scale = 36 - underlyingDecimals;
+        if (scale < 0) {
+          return parseFloat(ethers.utils.formatUnits(mantissa, 18));
+        }
+        return parseFloat(ethers.utils.formatUnits(mantissa, scale));
+      } catch (err) {
+        console.warn(`Failed to fetch on-chain price for ${ctokenAddress}`, err);
+        return null;
+      }
+    }
 
     const PRICE_EPS = 1e-6;
     function getPoolPriceUSD(pool) {
@@ -343,10 +377,12 @@ window.dashboardState = {
         totalLendUSD:0,
         totalBorrowUSD:0,
         totalCapacityUSD:0,
+        borrowLiquidityUSD:0,
         weightedSupply:0,
         weightedBorrow:0,
         poolStats:{},
-        tokenPricesUSD:{}
+        tokenPricesUSD:{},
+        priceOracle:null
       };
       document.getElementById('wallet-status').innerText = '';
       document.getElementById('data-body').innerHTML = '';
@@ -411,9 +447,13 @@ window.dashboardState = {
             ? 0
             : borrows.mul(10000).div(totalSupply).toNumber() / 100;
           const previousStats = window.dashboardState.poolStats[p.address] || {};
-          let priceUSD = getPoolPriceUSD(p);
+          const onChainPrice = await fetchUnderlyingPriceUSD(p.address, p.decimals);
+          let priceUSD = (onChainPrice !== null) ? onChainPrice : getPoolPriceUSD(p);
           if (!priceUSD && previousStats.priceUSD) priceUSD = previousStats.priceUSD;
           if (!priceUSD && !p.priceSymbol) priceUSD = 1;
+          if (onChainPrice !== null && p.priceSymbol) {
+            window.dashboardState.tokenPricesUSD[p.priceSymbol] = onChainPrice;
+          }
           const toBase = (valBN) => parseFloat(ethers.utils.formatUnits(valBN, p.decimals));
           const lendUnderlying = cBal.mul(exRate).div(ethers.BigNumber.from("1000000000000000000"));
           const baseLend = toBase(lendUnderlying);
@@ -493,6 +533,7 @@ tbody.appendChild(row);
       const borrowAvailable = Math.max(realBorrowLimit - totB, 0);
       const userAddress = await signer.getAddress();
       const borrowLimitFromComptroller = await fetchBorrowLimit(userAddress); // USD, сколько еще можно взять
+      window.dashboardState.borrowLiquidityUSD = borrowLimitFromComptroller;
       const usage = (totB + borrowLimitFromComptroller) > 0 ? (totB / (totB + borrowLimitFromComptroller)) * 100 : 0;
       const ethPool = pools.find(item => item.name === 'ETH');
       let ethPrice = 0;
@@ -595,7 +636,7 @@ tbody.appendChild(row);
       window.dashboardState.liquidationIncentive = await fetchLiquidationIncentive();
       const user = await signer.getAddress();
       let totL = 0, totB = 0, totC = 0, wS = 0, wB = 0;
-      let predL = 0, predB = 0, predC = 0, predWS = 0, predWB = 0;
+      let predL = 0, predB = 0, predCollateral = 0, predWS = 0, predWB = 0;
       let assetsIn = [];
       try {
         assetsIn = (await getAssetsIn(user)).map(a => a.toLowerCase());
@@ -668,7 +709,7 @@ tbody.appendChild(row);
         predB += predictedBorrowUSD;
 
         if (assetsIn.includes(pool.address.toLowerCase()) && predictedLendUSD > 0) {
-          predC += predictedLendUSD * pool.collateralFactor;
+          predCollateral += predictedLendUSD * pool.collateralFactor;
         }
 
 
@@ -738,12 +779,14 @@ tbody.appendChild(row);
       updatePredictedPortfolio(myNet, netAPY, daily, hourly);
 
       // usage
-const liquidationIncentive = window.dashboardState.liquidationIncentive || 1.05;
-const realBorrowLimitPred = predC / liquidationIncentive;
-const predUsage = realBorrowLimitPred > 0 ? (predB / realBorrowLimitPred) * 100 : 0;
+const currentBorrowUSD = window.dashboardState.totalBorrowUSD || 0;
+const currentLiquidityUSD = window.dashboardState.borrowLiquidityUSD || 0;
+const curUsageDenom = currentBorrowUSD + currentLiquidityUSD;
+const curUsage = curUsageDenom > 0 ? (currentBorrowUSD / curUsageDenom) * 100 : 0;
 
-const realBorrowLimitCur = window.dashboardState.totalCapacityUSD / liquidationIncentive;
-const curUsage = realBorrowLimitCur > 0 ? (window.dashboardState.totalBorrowUSD / realBorrowLimitCur) * 100 : 0;
+const predLiquidityUSD = Math.max(predCollateral - predB, 0);
+const predUsageDenom = predB + predLiquidityUSD;
+const predUsage = predUsageDenom > 0 ? (predB / predUsageDenom) * 100 : (predB > 0 ? 100 : 0);
 
 updateUsage(curUsage, predUsage);
 setStatus('✅ Preview all calculated');
@@ -899,7 +942,7 @@ async function fetchTokenPricesUSD() {
 }
 async function fetchLiquidationIncentive() {
   const { value } = await tryContractCall(
-    "0xAB1c342C7bf5Ec5F02ADEA1c2270670bCa144CbB",
+    COMPTROLLER_ADDRESS,
     ["function liquidationIncentiveMantissa() view returns (uint256)"],
     (contract) => contract.liquidationIncentiveMantissa(),
     'liquidationIncentive'
@@ -908,7 +951,7 @@ async function fetchLiquidationIncentive() {
 }
 async function getAssetsIn(address) {
   const { value } = await tryContractCall(
-    "0xAB1c342C7bf5Ec5F02ADEA1c2270670bCa144CbB",
+    COMPTROLLER_ADDRESS,
     ["function getAssetsIn(address) view returns (address[])"],
     (contract) => contract.getAssetsIn(address),
     'getAssetsIn'
@@ -920,7 +963,7 @@ async function enableCollateral(addr) {
   setStatus('⏳ Enabling collateral...');
   try {
     const comptroller = new ethers.Contract(
-      "0xAB1c342C7bf5Ec5F02ADEA1c2270670bCa144CbB",
+      COMPTROLLER_ADDRESS,
       ["function enterMarkets(address[]) returns (uint256[])"],
       signer
     );
@@ -933,7 +976,7 @@ async function enableCollateral(addr) {
 }
 async function fetchCollateralFactor(ctokenAddress) {
   const { value: market } = await tryContractCall(
-    "0xAB1c342C7bf5Ec5F02ADEA1c2270670bCa144CbB",
+    COMPTROLLER_ADDRESS,
     ["function markets(address) view returns (bool, uint256, bool)"],
     (contract) => contract.markets(ctokenAddress),
     `markets(${ctokenAddress})`
@@ -942,7 +985,7 @@ async function fetchCollateralFactor(ctokenAddress) {
 }
 async function fetchBorrowLimit(userAddress) {
   const { value } = await tryContractCall(
-    "0xAB1c342C7bf5Ec5F02ADEA1c2270670bCa144CbB",
+    COMPTROLLER_ADDRESS,
     ["function getAccountLiquidity(address) view returns (uint256, uint256, uint256)"],
     (contract) => contract.getAccountLiquidity(userAddress),
     'getAccountLiquidity'
