@@ -219,14 +219,52 @@ window.dashboardState = {
   weightedSupply: 0,
   weightedBorrow: 0,
   poolStats: {},
-  ethPriceUSD: 0
+  tokenPricesUSD: {}
 };
     const pools=[
       {name:'USDT',address:'0x48759F220ED983dB51fA7A8C0D2AAb8f3ce4166a',decimals:6,},
       {name:'DAI', address:'0x8e595470Ed749b85C6F7669de83EAe304C2ec68F',decimals:18,},
       {name:'USDC',address:'0x76Eb2FE28b36B3ee97F3Adae0C69606eeDB2A37c',decimals:6,},
-      {name:'ETH', address:'0x41c84c0e2EE0b740Cf0d31F63f3B6F627DC6b393',decimals:18,}
+      {name:'ETH', address:'0x41c84c0e2EE0b740Cf0d31F63f3B6F627DC6b393',decimals:18,priceSymbol:'ETHUSDT'},
+      {name:'WBTC',address:'0x8Fc8BFD80d6A9F17Fb98A373023d72531792B431',decimals:8,priceSymbol:'BTCUSDT'}
     ];
+
+    const PRICE_EPS = 1e-6;
+    function getPoolPriceUSD(pool) {
+      if (!pool.priceSymbol) return 1;
+      const prices = window.dashboardState.tokenPricesUSD || {};
+      const price = prices[pool.priceSymbol];
+      return (typeof price === 'number' && !Number.isNaN(price)) ? price : 0;
+    }
+    function getDisplayDecimals(pool) {
+      if (pool.decimals <= 4) return pool.decimals;
+      if (pool.decimals >= 18) return 4;
+      return Math.min(6, pool.decimals);
+    }
+    function formatTokenDisplay(pool, baseAmount, usdAmount) {
+      const decimals = getDisplayDecimals(pool);
+      const baseText = baseAmount.toLocaleString(undefined, { maximumFractionDigits: decimals });
+      const usdText = `$${usdAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+      if (!pool.priceSymbol || Math.abs((usdAmount || 0) - baseAmount) < PRICE_EPS) {
+        return `${usdText} ${pool.name}`;
+      }
+      if (usdAmount === 0 && baseAmount !== 0) {
+        return `${baseText} ${pool.name}`;
+      }
+      return `${baseText} ${pool.name}<br/><small style="color:#aaa">(${usdText})</small>`;
+    }
+    function formatBorrowDisplay(pool, baseAmount, usdAmount) {
+      const decimals = getDisplayDecimals(pool);
+      const baseText = baseAmount.toLocaleString(undefined, { maximumFractionDigits: decimals });
+      const usdText = `$${usdAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+      if (!pool.priceSymbol || Math.abs((usdAmount || 0) - baseAmount) < PRICE_EPS) {
+        return `${usdAmount.toLocaleString(undefined,{maximumFractionDigits:2})} ${pool.name}`;
+      }
+      if (usdAmount === 0 && baseAmount !== 0) {
+        return `${baseText} ${pool.name}`;
+      }
+      return `${baseText} ${pool.name}<br/><small style="color:#aaa">(${usdText})</small>`;
+    }
 
     function setStatus(msg){ document.getElementById('status').innerText = msg; }
     function updateUsage(cur,pred){
@@ -268,7 +306,15 @@ window.dashboardState = {
     }
     function disconnectWallet(){
       provider = signer = null;
-      window.dashboardState = { totalLendUSD:0, totalBorrowUSD:0, totalCapacityUSD:0, weightedSupply:0, weightedBorrow:0, poolStats:{} };
+      window.dashboardState = {
+        totalLendUSD:0,
+        totalBorrowUSD:0,
+        totalCapacityUSD:0,
+        weightedSupply:0,
+        weightedBorrow:0,
+        poolStats:{},
+        tokenPricesUSD:{}
+      };
       document.getElementById('wallet-status').innerText = '';
       document.getElementById('data-body').innerHTML = '';
       document.getElementById('portfolio-summary').innerText = 'Portfolio: $0.00 | Net APY: 0% | Daily: $0.00 | Hourly: $0.00';
@@ -278,7 +324,7 @@ window.dashboardState = {
     async function loadPoolData(){
       if(!signer){ setStatus('❌ Connect wallet first'); return; }
       setStatus('🔄 Loading…');
-      await fetchEthPriceUSD();
+      await fetchTokenPricesUSD();
       await updateAllCollateralFactors();
       window.dashboardState.liquidationIncentive = await fetchLiquidationIncentive();
 
@@ -325,16 +371,24 @@ window.dashboardState = {
           const supplyAPY = (1+srPB)**blocksPerYear - 1;
           const totalSupply = cash.add(borrows).sub(reserves);
           const utilization = borrows.mul(10000).div(totalSupply).toNumber()/100;
-          let usdLend = parseFloat(ethers.utils.formatUnits(
-            cBal.mul(exRate).div(ethers.BigNumber.from("1000000000000000000")),
-            p.decimals
-          ));
-          let usdBorrow = parseFloat(ethers.utils.formatUnits(bBal, p.decimals));
-          if (p.name === 'ETH') {
-            const ethPrice = window.dashboardState.ethPriceUSD;
-            usdLend *= ethPrice;
-            usdBorrow *= ethPrice;
-          }
+          const previousStats = window.dashboardState.poolStats[p.address] || {};
+          let priceUSD = getPoolPriceUSD(p);
+          if (!priceUSD && previousStats.priceUSD) priceUSD = previousStats.priceUSD;
+          if (!priceUSD && !p.priceSymbol) priceUSD = 1;
+          const toBase = (valBN) => parseFloat(ethers.utils.formatUnits(valBN, p.decimals));
+          const lendUnderlying = cBal.mul(exRate).div(ethers.BigNumber.from("1000000000000000000"));
+          const baseLend = toBase(lendUnderlying);
+          const baseBorrow = toBase(bBal);
+          const baseCash = toBase(cash);
+          const baseTotalSupply = toBase(totalSupply);
+          const baseBorrows = toBase(borrows);
+          const baseReserves = toBase(reserves);
+          const usdLend = baseLend * priceUSD;
+          const usdBorrow = baseBorrow * priceUSD;
+          const usdCash = baseCash * priceUSD;
+          const usdTotalSupply = baseTotalSupply * priceUSD;
+          const usdBorrows = baseBorrows * priceUSD;
+          const usdReserves = baseReserves * priceUSD;
           totL+=usdLend; totB+=usdBorrow;
           if (assetsIn.includes(p.address.toLowerCase()) && usdLend > 0) {
             totC+=usdLend*p.collateralFactor;
@@ -346,21 +400,15 @@ window.dashboardState = {
             supplyAPY, borrowAPY,
             util: utilization/100,
             decimals: p.decimals,
-            collateralFactor: p.collateralFactor
+            collateralFactor: p.collateralFactor,
+            priceUSD
           };
-          const fmt = v => Number(ethers.utils.formatUnits(v, p.decimals)).toLocaleString(undefined, {
-            maximumFractionDigits: 2
-          });
-          const usdFmt = (v) => `$${v.toLocaleString(undefined, {maximumFractionDigits: 2})}`;
-          const fmtWithUSD = (valBN, valUSD) => {
-            const native = Number(ethers.utils.formatUnits(valBN, p.decimals)).toFixed(4);
-            return p.name === 'ETH'
-              ? `${native} ${p.name}<br/><small style="color:#aaa">(${usdFmt(valUSD)})</small>`
-              : `${usdFmt(valUSD)} ${p.name}`;
+          const formatValue = (bn, baseOverride, usdOverride) => {
+            const baseAmount = baseOverride !== undefined ? baseOverride : toBase(bn);
+            const usdAmount = usdOverride !== undefined ? usdOverride : baseAmount * priceUSD;
+            return formatTokenDisplay(p, baseAmount, usdAmount);
           };
-          const borrowText = p.name === 'ETH'
-            ? `${parseFloat(ethers.utils.formatUnits(bBal, p.decimals)).toFixed(4)} ${p.name}<br/><small style="color:#aaa">($${usdBorrow.toLocaleString(undefined,{maximumFractionDigits:2})})</small>`
-            : `${usdBorrow.toLocaleString(undefined,{maximumFractionDigits:2})} ${p.name}`;
+          const borrowText = formatBorrowDisplay(p, baseBorrow, usdBorrow);
 
           const isCollateral = assetsIn.includes(p.address.toLowerCase());
           const collateralCell = isCollateral
@@ -370,14 +418,14 @@ window.dashboardState = {
           const row = document.createElement('tr');
           row.innerHTML = `
             <td data-label="Token">${p.name}</td>
-            <td data-label="Liquidity" class="liquidity-value">${fmtWithUSD(cash, p.name === 'ETH' ? parseFloat(ethers.utils.formatUnits(cash, p.decimals)) * window.dashboardState.ethPriceUSD : parseFloat(ethers.utils.formatUnits(cash, p.decimals)))}</td>
-            <td data-label="Total Supply">${fmtWithUSD(totalSupply, p.name === 'ETH' ? parseFloat(ethers.utils.formatUnits(totalSupply, p.decimals)) * window.dashboardState.ethPriceUSD : parseFloat(ethers.utils.formatUnits(totalSupply, p.decimals)))}</td>
+            <td data-label="Liquidity" class="liquidity-value">${formatValue(cash, baseCash, usdCash)}</td>
+            <td data-label="Total Supply">${formatValue(totalSupply, baseTotalSupply, usdTotalSupply)}</td>
             <td data-label="Supply APY" class="supply-apy">${(supplyAPY*100).toFixed(2)}% <em id="pred-supply-${p.address}"></em></td>
-            <td data-label="Total Borrow">${fmtWithUSD(borrows, p.name === 'ETH' ? parseFloat(ethers.utils.formatUnits(borrows, p.decimals)) * window.dashboardState.ethPriceUSD : parseFloat(ethers.utils.formatUnits(borrows, p.decimals)))}</td>
+            <td data-label="Total Borrow">${formatValue(borrows, baseBorrows, usdBorrows)}</td>
             <td data-label="Borrow APY" class="borrow-apy">${(borrowAPY*100).toFixed(2)}% <em id="pred-borrow-${p.address}"></em></td>
-            <td data-label="Reserves">${fmtWithUSD(reserves, p.name === 'ETH' ? parseFloat(ethers.utils.formatUnits(reserves, p.decimals)) * window.dashboardState.ethPriceUSD : parseFloat(ethers.utils.formatUnits(reserves, p.decimals)))}</td>
+            <td data-label="Reserves">${formatValue(reserves, baseReserves, usdReserves)}</td>
             <td data-label="Utilization">${utilization.toFixed(2)}%</td>
-            <td data-label="Your Lend" class="your-lend">${fmtWithUSD(cBal.mul(exRate).div("1000000000000000000"), usdLend)}</td>
+            <td data-label="Your Lend" class="your-lend">${formatValue(lendUnderlying, baseLend, usdLend)}</td>
             <td data-label="Your Borrow" class="your-borrow">${borrowText}</td>
             <td data-label="Actions">
               <input id="supply-${p.address}" placeholder="Supply"/><button onclick="supply('${p.address}',${p.decimals})">Supply</button><br/>
@@ -391,6 +439,11 @@ window.dashboardState = {
 
 tbody.appendChild(row);
         }catch(e){ console.error(e); }}
+      window.dashboardState.totalLendUSD = totL;
+      window.dashboardState.totalBorrowUSD = totB;
+      window.dashboardState.totalCapacityUSD = totC;
+      window.dashboardState.weightedSupply = wS;
+      window.dashboardState.weightedBorrow = wB;
       const myNet = totL - totB;
       const netAPY = myNet !== 0 ? (wS - wB) / Math.abs(myNet) : 0;
       const daily = myNet * netAPY / 365;
@@ -402,7 +455,11 @@ tbody.appendChild(row);
       const userAddress = await signer.getAddress();
       const borrowLimitFromComptroller = await fetchBorrowLimit(userAddress); // USD, сколько еще можно взять
       const usage = (totB + borrowLimitFromComptroller) > 0 ? (totB / (totB + borrowLimitFromComptroller)) * 100 : 0;
-      const ethPrice = window.dashboardState.ethPriceUSD || 0;
+      const ethPool = pools.find(item => item.name === 'ETH');
+      let ethPrice = 0;
+      if (ethPool && ethPool.priceSymbol) {
+        ethPrice = window.dashboardState.tokenPricesUSD[ethPool.priceSymbol] || window.dashboardState.poolStats[ethPool.address]?.priceUSD || 0;
+      }
       const borrowLimitETH = ethPrice > 0 ? (borrowLimitFromComptroller / ethPrice) : 0;
 
       document.getElementById('portfolio-summary').innerHTML =
@@ -488,7 +545,7 @@ tbody.appendChild(row);
       }
     }
  async function previewAll() {
-      await fetchEthPriceUSD();
+      await fetchTokenPricesUSD();
       if (!signer) { setStatus('❌ Connect wallet first'); return; }
       setStatus('🔄 Calculating preview…');
       await updateAllCollateralFactors();
@@ -530,51 +587,41 @@ tbody.appendChild(row);
           c.borrowBalanceStored(user),
           c.exchangeRateStored()
         ]);
-        const usdLend = parseFloat(
-          ethers.utils.formatUnits(cBal.mul(exRate).div(ethers.BigNumber.from('1000000000000000000')), pool.decimals)
-        );
-        const usdBorrow = parseFloat(
-          ethers.utils.formatUnits(bBal, pool.decimals)
-        );
+        const toBase = (bn) => parseFloat(ethers.utils.formatUnits(bn, pool.decimals));
+        const lendUnderlying = cBal.mul(exRate).div(ethers.BigNumber.from('1000000000000000000'));
+        const baseLend = toBase(lendUnderlying);
+        const baseBorrow = toBase(bBal);
+        let priceUSD = (stats && stats.priceUSD) || getPoolPriceUSD(pool);
+        if (!priceUSD && !pool.priceSymbol) priceUSD = 1;
+        const lendUSD = baseLend * priceUSD;
+        const borrowUSD = baseBorrow * priceUSD;
 
-        totL += usdLend;
-        totB += usdBorrow;
-if (assetsIn.includes(pool.address.toLowerCase()) && usdLend > 0) {
-  totC += usdLend * pool.collateralFactor;
-}
-        wS += usdLend * stats.supplyAPY;
-        wB += usdBorrow * stats.borrowAPY;
+        totL += lendUSD;
+        totB += borrowUSD;
+        if (assetsIn.includes(pool.address.toLowerCase()) && lendUSD > 0) {
+          totC += lendUSD * pool.collateralFactor;
+        }
+        const supplyAPY = stats?.supplyAPY || 0;
+        const borrowAPY = stats?.borrowAPY || 0;
+        wS += lendUSD * supplyAPY;
+        wB += borrowUSD * borrowAPY;
 
-        // predicted underlying
-        let pL = usdLend;
-        if (!sup.isZero()) pL += parseFloat(ethers.utils.formatUnits(sup, pool.decimals));
-        if (!wit.isZero()) {
-          pL -= parseFloat(ethers.utils.formatUnits(wit, pool.decimals));
-          if (pL < 0) pL = 0;
-        }
-        // borrow и repay не влияют на collateral!
-        if (pool.name === 'ETH') {
-          const ethPrice = window.dashboardState.ethPriceUSD;
-          pL *= ethPrice;
-        }
-        predL += pL;
+        const supplyDelta = !sup.isZero() ? toBase(sup) : 0;
+        const withdrawDelta = !wit.isZero() ? toBase(wit) : 0;
+        let predictedLendBase = baseLend + supplyDelta - withdrawDelta;
+        if (predictedLendBase < 0) predictedLendBase = 0;
+        const predictedLendUSD = predictedLendBase * priceUSD;
+        predL += predictedLendUSD;
 
-        // pB — только borrow и repay
-        let pB = usdBorrow;
-        if (!bor.isZero()) pB += parseFloat(ethers.utils.formatUnits(bor, pool.decimals));
-        if (!rep.isZero()) {
-          pB -= parseFloat(ethers.utils.formatUnits(rep, pool.decimals));
-          if (pB < 0) pB = 0;
-        }
-        if (pool.name === 'ETH') {
-          const ethPrice = window.dashboardState.ethPriceUSD;
-          pB *= ethPrice;
-        }
-        predB += pB;
+        const borrowDelta = !bor.isZero() ? toBase(bor) : 0;
+        const repayDelta = !rep.isZero() ? toBase(rep) : 0;
+        let predictedBorrowBase = baseBorrow + borrowDelta - repayDelta;
+        if (predictedBorrowBase < 0) predictedBorrowBase = 0;
+        const predictedBorrowUSD = predictedBorrowBase * priceUSD;
+        predB += predictedBorrowUSD;
 
-        // Важно: predC += pL * pool.collateralFactor; // только supply!
-        if (assetsIn.includes(pool.address.toLowerCase()) && usdLend > 0) {
-          predC += pL * pool.collateralFactor;
+        if (assetsIn.includes(pool.address.toLowerCase()) && predictedLendUSD > 0) {
+          predC += predictedLendUSD * pool.collateralFactor;
         }
 
 
@@ -618,8 +665,8 @@ if (assetsIn.includes(pool.address.toLowerCase()) && usdLend > 0) {
           const borrowAPYPred = Math.pow(1 + brPB, blocksPerYear) - 1;
           const supplyAPYPred = Math.pow(1 + srPB, blocksPerYear) - 1;
           updatePredAPY(pool.address, supplyAPYPred, borrowAPYPred);
-          predWS += pL * supplyAPYPred;
-          predWB += pB * borrowAPYPred;
+          predWS += predictedLendUSD * supplyAPYPred;
+          predWB += predictedBorrowUSD * borrowAPYPred;
         } catch {}
       }
 
@@ -735,15 +782,26 @@ setStatus('✅ Preview all calculated');
         setStatus('❌ ' + (e.reason || e.message));
       }
     }
-async function fetchEthPriceUSD() {
-  try {
-    const resp = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT");
-    const data = await resp.json();
-    window.dashboardState.ethPriceUSD = parseFloat(data.price);
-  } catch (e) {
-    setStatus("❌ Не удалось получить цену ETH с Binance");
-    window.dashboardState.ethPriceUSD = 0;
+async function fetchTokenPricesUSD() {
+  const symbols = [...new Set(pools.filter(p => p.priceSymbol).map(p => p.priceSymbol))];
+  if (!symbols.length) {
+    window.dashboardState.tokenPricesUSD = {};
+    return;
   }
+  const prices = { ...(window.dashboardState.tokenPricesUSD || {}) };
+  await Promise.all(symbols.map(async (symbol) => {
+    try {
+      const resp = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`);
+      const data = await resp.json();
+      const parsed = parseFloat(data.price);
+      if (!Number.isNaN(parsed)) {
+        prices[symbol] = parsed;
+      }
+    } catch (e) {
+      console.warn(`Failed to fetch price for ${symbol}`, e);
+    }
+  }));
+  window.dashboardState.tokenPricesUSD = prices;
 }
 async function fetchLiquidationIncentive() {
   const comptroller = new ethers.Contract(
@@ -812,9 +870,6 @@ async function updateAllCollateralFactors() {
     p.collateralFactor = await fetchCollateralFactor(p.address);
   }
 }
-console.log("USDT supply", usdLend, "collateralFactor", p.collateralFactor);
-console.log("ETH borrow", usdBorrow, "ETH price", window.dashboardState.ethPriceUSD);
-console.log("totC", totC, "totB", totB, "liquidationIncentive", liquidationIncentive, "usage", usage);
   </script>
 </body>
 </html>
