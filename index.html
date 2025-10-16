@@ -474,7 +474,7 @@ window.dashboardState = {
           }
           wS+=usdLend*supplyAPY; wB+=usdBorrow*borrowAPY;
           window.dashboardState.poolStats[p.address] = {
-            cash, borrows, reserves, modelAddr, resFact,
+            cash, borrows, reserves, modelAddr, resFact, exchangeRate: exRate,
             brPB, srPB, rf,
             supplyAPY, borrowAPY,
             util: utilization/100,
@@ -883,13 +883,58 @@ setStatus('✅ Preview all calculated');
       if(!val) return alert('Enter amount');
       setStatus('⏳ Withdrawing...');
       try{
-        const c = new ethers.Contract(addr,
-          ["function redeemUnderlying(uint256) returns(uint256)"], signer);
+        const abi = [
+          "function redeemUnderlying(uint256) returns(uint256)",
+          "function redeem(uint256) returns(uint256)",
+          "function balanceOf(address) view returns(uint256)",
+          "function exchangeRateCurrent() returns(uint256)"
+        ];
+        const c = new ethers.Contract(addr, abi, signer);
         const amt = ethers.utils.parseUnits(val,dec);
-        await (await c.redeemUnderlying(amt)).wait();
-        setStatus('✅ Withdraw done');
+        try {
+          await (await c.redeemUnderlying(amt)).wait();
+          setStatus('✅ Withdraw done');
+        } catch (primaryErr) {
+          const reasonText = [
+            primaryErr?.error?.data?.message,
+            primaryErr?.error?.message,
+            primaryErr?.reason,
+            primaryErr?.data?.message,
+            primaryErr?.message
+          ].find(msg => typeof msg === 'string') || '';
+          if (reasonText.toLowerCase().includes('circuit breaker')) {
+            const owner = await signer.getAddress();
+            const stats = window.dashboardState.poolStats?.[addr] || {};
+            let exchangeRate = stats.exchangeRate;
+            if (!exchangeRate || !ethers.BigNumber.isBigNumber(exchangeRate) || exchangeRate.isZero()) {
+              try {
+                exchangeRate = await c.callStatic.exchangeRateCurrent();
+              } catch (rateErr) {
+                console.warn('Failed to fetch exchange rate for fallback redeem', rateErr);
+                throw primaryErr;
+              }
+            }
+            const mantissa = ethers.BigNumber.from("1000000000000000000");
+            let redeemTokens = amt.mul(mantissa).div(exchangeRate);
+            if (redeemTokens.isZero()) {
+              redeemTokens = ethers.BigNumber.from(1);
+            }
+            const balance = await c.balanceOf(owner);
+            if (redeemTokens.gt(balance)) {
+              redeemTokens = balance;
+            }
+            if (redeemTokens.isZero()) throw primaryErr;
+            await (await c.redeem(redeemTokens)).wait();
+            setStatus('✅ Withdraw done (fallback)');
+          } else {
+            throw primaryErr;
+          }
+        }
         loadPoolData();
-      } catch(e){ setStatus('❌ '+e.message); }
+      } catch(e){
+        const message = e?.reason || e?.error?.data?.message || e?.message || 'Withdraw failed';
+        setStatus('❌ '+message);
+      }
     }
     async function updatePool(addr) {
       setStatus('⏳ Updating pool...');
