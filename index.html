@@ -370,7 +370,9 @@ window.dashboardState = {
           const borrowAPY = (1+brPB)**blocksPerYear - 1;
           const supplyAPY = (1+srPB)**blocksPerYear - 1;
           const totalSupply = cash.add(borrows).sub(reserves);
-          const utilization = borrows.mul(10000).div(totalSupply).toNumber()/100;
+          const utilization = totalSupply.isZero()
+            ? 0
+            : borrows.mul(10000).div(totalSupply).toNumber() / 100;
           const previousStats = window.dashboardState.poolStats[p.address] || {};
           let priceUSD = getPoolPriceUSD(p);
           if (!priceUSD && previousStats.priceUSD) priceUSD = previousStats.priceUSD;
