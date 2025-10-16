@@ -206,7 +206,6 @@ button:hover {
   </table>
   </div>
   <div id="status"></div>
-  <div id="history-section" style="margin-top: 30px;"></div>
 
   <script>
     const blocksPerYear = 2628000;
@@ -353,7 +352,6 @@ window.dashboardState = {
       document.getElementById('data-body').innerHTML = '';
       document.getElementById('portfolio-summary').innerText = 'Portfolio: $0.00 | Net APY: 0% | Daily: $0.00 | Hourly: $0.00';
       updateUsage(0,0); clearPredAPY(); setStatus('');
-      renderHistoryTable();
     }
 
     async function loadPoolData(){
@@ -508,21 +506,7 @@ tbody.appendChild(row);
         `<span style="color:#fff;font-size:1.3em;font-weight:bold;">Borrow Limit: ${borrowLimitETH.toFixed(4)} ETH</span>`;
       updateUsage(usage, usage);
       clearPredAPY(); setStatus('');
-      if (walletConnected) {
-        try {
-          const history = JSON.parse(localStorage.getItem("earnHistory") || "[]");
-          history.push({
-            date: new Date().toISOString(),
-            net: myNet.toFixed(2),
-            daily: daily.toFixed(2),
-            apy: (netAPY * 100).toFixed(2)
-          });
-          localStorage.setItem("earnHistory", JSON.stringify(history.slice(-30)));
-          renderHistoryTable();
-        } catch (e) {
-          console.warn("Error saving history", e);
-        }
-      }
+      // history tracking removed
     }
 
     function updatePredictedPortfolio(myNet, netAPY, daily, hourly) {
@@ -537,48 +521,6 @@ tbody.appendChild(row);
         document.getElementById('portfolio-summary').after(el);
       }
       el.innerText = `Predicted Portfolio: $${myNet.toFixed(2)} | Net APY: ${(netAPY*100).toFixed(2)}% | Daily: $${daily.toFixed(2)} | Hourly: $${hourly.toFixed(2)}`;
-    }
-
-    function renderHistoryTable() {
-      const container = document.getElementById('history-section');
-      if (!container) return;
-      if (!walletConnected) {
-        container.innerHTML = '';
-        return;
-      }
-      let history = [];
-      try {
-        history = JSON.parse(localStorage.getItem("earnHistory") || "[]");
-      } catch {
-        history = [];
-      }
-      if (!history.length) {
-        container.innerHTML = '';
-        return;
-      }
-      const rows = history.slice(-30).reverse().map(item => {
-        return `<tr>
-          <td>${new Date(item.date).toLocaleString()}</td>
-          <td>$${item.net}</td>
-          <td>$${item.daily}</td>
-          <td>${item.apy}%</td>
-        </tr>`;
-      }).join('');
-      container.innerHTML = `
-        <h2 style="text-align:center;margin-top:20px;">History</h2>
-        <div class="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>Timestamp</th>
-                <th>Net</th>
-                <th>Daily</th>
-                <th>APY</th>
-              </tr>
-            </thead>
-            <tbody>${rows}</tbody>
-          </table>
-        </div>`;
     }
 
     async function preview(addr) {
