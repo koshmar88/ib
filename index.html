@@ -636,7 +636,12 @@ tbody.appendChild(row);
       window.dashboardState.liquidationIncentive = await fetchLiquidationIncentive();
       const user = await signer.getAddress();
       let totL = 0, totB = 0, totC = 0, wS = 0, wB = 0;
-      let predL = 0, predB = 0, predCollateral = 0, predWS = 0, predWB = 0;
+      let predL = 0, predB = 0, predWS = 0, predWB = 0;
+      const baseBorrowUSD = window.dashboardState.totalBorrowUSD || 0;
+      const baseLiquidityUSD = window.dashboardState.borrowLiquidityUSD || 0;
+      let borrowDeltaUSD = 0;
+      let collateralDeltaUSD = 0;
+      let currentCollateralTotal = 0;
       let assetsIn = [];
       try {
         assetsIn = (await getAssetsIn(user)).map(a => a.toLowerCase());
@@ -686,9 +691,12 @@ tbody.appendChild(row);
 
         totL += lendUSD;
         totB += borrowUSD;
+        let currentCollateralUSD = 0;
         if (assetsIn.includes(pool.address.toLowerCase()) && lendUSD > 0) {
-          totC += lendUSD * pool.collateralFactor;
+          currentCollateralUSD = lendUSD * pool.collateralFactor;
+          totC += currentCollateralUSD;
         }
+        currentCollateralTotal += currentCollateralUSD;
         const supplyAPY = stats?.supplyAPY || 0;
         const borrowAPY = stats?.borrowAPY || 0;
         wS += lendUSD * supplyAPY;
@@ -708,9 +716,12 @@ tbody.appendChild(row);
         const predictedBorrowUSD = predictedBorrowBase * priceUSD;
         predB += predictedBorrowUSD;
 
+        let predictedCollateralUSDForPool = 0;
         if (assetsIn.includes(pool.address.toLowerCase()) && predictedLendUSD > 0) {
-          predCollateral += predictedLendUSD * pool.collateralFactor;
+          predictedCollateralUSDForPool = predictedLendUSD * pool.collateralFactor;
         }
+        collateralDeltaUSD += predictedCollateralUSDForPool - currentCollateralUSD;
+        borrowDeltaUSD += predictedBorrowUSD - borrowUSD;
 
 
         // interest accrual & new rates
@@ -771,6 +782,11 @@ tbody.appendChild(row);
         } catch {}
       }
 
+      const predictedBorrowUSDTotal = Math.max(baseBorrowUSD + borrowDeltaUSD, 0);
+      const predictedCollateralUSDTotal = Math.max(currentCollateralTotal + collateralDeltaUSD, 0);
+      const predictedLiquidityUSD = Math.max(predictedCollateralUSDTotal - predictedBorrowUSDTotal, 0);
+      predB = predictedBorrowUSDTotal;
+
       // final portfolio prediction
       const myNet = predL - predB;
       const netAPY = myNet ? (predWS - predWB) / Math.abs(myNet) : 0;
@@ -779,14 +795,13 @@ tbody.appendChild(row);
       updatePredictedPortfolio(myNet, netAPY, daily, hourly);
 
       // usage
-const currentBorrowUSD = window.dashboardState.totalBorrowUSD || 0;
-const currentLiquidityUSD = window.dashboardState.borrowLiquidityUSD || 0;
-const curUsageDenom = currentBorrowUSD + currentLiquidityUSD;
-const curUsage = curUsageDenom > 0 ? (currentBorrowUSD / curUsageDenom) * 100 : 0;
+const curUsageDenom = baseBorrowUSD + baseLiquidityUSD;
+const curUsage = curUsageDenom > 0 ? (baseBorrowUSD / curUsageDenom) * 100 : 0;
 
-const predLiquidityUSD = Math.max(predCollateral - predB, 0);
-const predUsageDenom = predB + predLiquidityUSD;
-const predUsage = predUsageDenom > 0 ? (predB / predUsageDenom) * 100 : (predB > 0 ? 100 : 0);
+const predUsageDenom = predictedBorrowUSDTotal + predictedLiquidityUSD;
+const predUsage = predUsageDenom > 0
+  ? (predictedBorrowUSDTotal / predUsageDenom) * 100
+  : (predictedBorrowUSDTotal > 0 ? 100 : 0);
 
 updateUsage(curUsage, predUsage);
 setStatus('✅ Preview all calculated');
