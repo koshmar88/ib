@@ -782,9 +782,11 @@ tbody.appendChild(row);
         } catch {}
       }
 
+      const liquidationIncentive = window.dashboardState.liquidationIncentive || 1.05;
       const predictedBorrowUSDTotal = Math.max(baseBorrowUSD + borrowDeltaUSD, 0);
       const predictedCollateralUSDTotal = Math.max(currentCollateralTotal + collateralDeltaUSD, 0);
-      const predictedLiquidityUSD = Math.max(predictedCollateralUSDTotal - predictedBorrowUSDTotal, 0);
+      const liquidityDeltaUSD = (collateralDeltaUSD / liquidationIncentive) - borrowDeltaUSD;
+      const predictedLiquidityUSD = Math.max(baseLiquidityUSD + liquidityDeltaUSD, 0);
       predB = predictedBorrowUSDTotal;
 
       // final portfolio prediction
