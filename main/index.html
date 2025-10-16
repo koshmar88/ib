@@ -211,6 +211,8 @@ button:hover {
   <script>
     const blocksPerYear = 2628000;
     let provider, signer;
+    const DEFAULT_RPC = 'https://eth.llamarpc.com';
+    let readProvider = new ethers.providers.JsonRpcProvider(DEFAULT_RPC);
     const GREEN='#2ecc71', RED='#e74c3c';
 window.dashboardState = {
   totalLendUSD: 0,
@@ -355,7 +357,7 @@ window.dashboardState = {
 
       for(const p of pools) {
         try {
-          const c = new ethers.Contract(p.address, abi, provider);
+          const c = new ethers.Contract(p.address, abi, readProvider);
           const [cash, borrows, reserves, brRaw, srRaw, exRate, cBal, bBal, modelAddr, resFact] =
             await Promise.all([
               c.getCash(), c.totalBorrows(), c.totalReserves(),
@@ -370,7 +372,9 @@ window.dashboardState = {
           const borrowAPY = (1+brPB)**blocksPerYear - 1;
           const supplyAPY = (1+srPB)**blocksPerYear - 1;
           const totalSupply = cash.add(borrows).sub(reserves);
-          const utilization = borrows.mul(10000).div(totalSupply).toNumber()/100;
+          const utilization = totalSupply.isZero()
+            ? 0
+            : borrows.mul(10000).div(totalSupply).toNumber() / 100;
           const previousStats = window.dashboardState.poolStats[p.address] || {};
           let priceUSD = getPoolPriceUSD(p);
           if (!priceUSD && previousStats.priceUSD) priceUSD = previousStats.priceUSD;
@@ -516,21 +520,21 @@ tbody.appendChild(row);
       const stats = window.dashboardState.poolStats[addr];
       let blocksElapsed;
       try {
-        const accrual = await new ethers.Contract(addr, ['function accrualBlockNumber() view returns(uint256)'], provider).accrualBlockNumber();
-        const curr = await provider.getBlockNumber();
+        const accrual = await new ethers.Contract(addr, ['function accrualBlockNumber() view returns(uint256)'], readProvider).accrualBlockNumber();
+        const curr = await readProvider.getBlockNumber();
         blocksElapsed = ethers.BigNumber.from(curr).sub(accrual);
         if (blocksElapsed.lt(1)) blocksElapsed = ethers.BigNumber.from(1);
       } catch {
         blocksElapsed = ethers.BigNumber.from(1);
       }
-      const brPrev = await new ethers.Contract(stats.modelAddr, ['function getBorrowRate(uint256,uint256,uint256) view returns(uint256)'], provider)
+      const brPrev = await new ethers.Contract(stats.modelAddr, ['function getBorrowRate(uint256,uint256,uint256) view returns(uint256)'], readProvider)
         .getBorrowRate(stats.cash, stats.borrows, stats.reserves);
       const interest = stats.borrows.mul(brPrev).mul(blocksElapsed).div(ethers.utils.parseUnits('1', 18));
       const newBor = stats.borrows.add(interest).add(bor).sub(rep);
       const newCash = stats.cash.add(sup).sub(wit).add(rep).sub(bor);
       const newRes = stats.reserves.add(interest.mul(stats.resFact).div(ethers.utils.parseUnits('1',18)));
       try {
-        const im = new ethers.Contract(stats.modelAddr, ['function getBorrowRate(uint256,uint256,uint256) view returns(uint256)', 'function getSupplyRate(uint256,uint256,uint256,uint256) view returns(uint256)'], provider);
+        const im = new ethers.Contract(stats.modelAddr, ['function getBorrowRate(uint256,uint256,uint256) view returns(uint256)', 'function getSupplyRate(uint256,uint256,uint256,uint256) view returns(uint256)'], readProvider);
         const [brRaw, srRaw] = await Promise.all([
           im.getBorrowRate(newCash, newBor, newRes),
           im.getSupplyRate(newCash, newBor, newRes, stats.resFact)
@@ -581,7 +585,7 @@ tbody.appendChild(row);
           'function balanceOf(address) view returns(uint256)',
           'function borrowBalanceStored(address) view returns(uint256)',
           'function exchangeRateStored() view returns(uint256)'
-        ], provider);
+        ], readProvider);
         const [cBal, bBal, exRate] = await Promise.all([
           c.balanceOf(user),
           c.borrowBalanceStored(user),
@@ -629,9 +633,9 @@ tbody.appendChild(row);
         let blocksElapsed;
         try {
           const accrual = await new ethers.Contract(pool.address,
-            ['function accrualBlockNumber() view returns(uint256)'], provider
+            ['function accrualBlockNumber() view returns(uint256)'], readProvider
           ).accrualBlockNumber();
-          const curr = await provider.getBlockNumber();
+          const curr = await readProvider.getBlockNumber();
           blocksElapsed = ethers.BigNumber.from(curr).sub(accrual);
           if (blocksElapsed.lt(1)) blocksElapsed = ethers.BigNumber.from(1);
         } catch {
@@ -639,7 +643,7 @@ tbody.appendChild(row);
         }
         // accrue interest
         const brPrev = await new ethers.Contract(stats.modelAddr,
-          ['function getBorrowRate(uint256,uint256,uint256) view returns(uint256)'], provider
+          ['function getBorrowRate(uint256,uint256,uint256) view returns(uint256)'], readProvider
         ).getBorrowRate(stats.cash, stats.borrows, stats.reserves);
         const interest = stats.borrows
           .mul(brPrev)
@@ -655,7 +659,7 @@ tbody.appendChild(row);
           const im = new ethers.Contract(stats.modelAddr, [
             'function getBorrowRate(uint256,uint256,uint256) view returns(uint256)',
             'function getSupplyRate(uint256,uint256,uint256,uint256) view returns(uint256)'
-          ], provider);
+          ], readProvider);
           const [brRaw, srRaw] = await Promise.all([
             im.getBorrowRate(newCash, newBor, newRes),
             im.getSupplyRate(newCash, newBor, newRes, stats.resFact)
@@ -841,7 +845,7 @@ async function fetchLiquidationIncentive() {
   const comptroller = new ethers.Contract(
     "0xAB1c342C7bf5Ec5F02ADEA1c2270670bCa144CbB",
     ["function liquidationIncentiveMantissa() view returns (uint256)"],
-    provider
+    readProvider
   );
   const mantissa = await comptroller.liquidationIncentiveMantissa();
   return Number(mantissa) / 1e18;
@@ -850,7 +854,7 @@ async function getAssetsIn(address) {
   const comptroller = new ethers.Contract(
     "0xAB1c342C7bf5Ec5F02ADEA1c2270670bCa144CbB",
     ["function getAssetsIn(address) view returns (address[])"],
-    provider
+    readProvider
   );
   return await comptroller.getAssetsIn(address);
 }
@@ -870,18 +874,12 @@ async function enableCollateral(addr) {
     setStatus('❌ ' + (e.reason || e.message));
   }
 }
-const comptroller = new ethers.Contract(
-  "0xAB1c342C7bf5Ec5F02ADEA1c2270670bCa144CbB", // адрес Comptroller Iron Bank
-  ["function markets(address) view returns (bool, uint256, bool)"],
-  provider
-);
-
 async function fetchCollateralFactor(ctokenAddress) {
-  // Comptroller создаём внутри функции, чтобы provider был актуальным!
+  // Comptroller создаём внутри функции, чтобы readProvider был актуальным!
   const comptroller = new ethers.Contract(
     "0xAB1c342C7bf5Ec5F02ADEA1c2270670bCa144CbB",
     ["function markets(address) view returns (bool, uint256, bool)"],
-    provider
+    readProvider
   );
   const market = await comptroller.markets(ctokenAddress);
   return Number(market[1]) / 1e18;
@@ -890,7 +888,7 @@ async function fetchBorrowLimit(userAddress) {
   const comptroller = new ethers.Contract(
     "0xAB1c342C7bf5Ec5F02ADEA1c2270670bCa144CbB",
     ["function getAccountLiquidity(address) view returns (uint256, uint256, uint256)"],
-    provider
+    readProvider
   );
   const [error, liquidity, shortfall] = await comptroller.getAccountLiquidity(userAddress);
   if (!error.eq(0)) return 0;
