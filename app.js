@@ -654,15 +654,15 @@ async function previewAll() {
     wS += lendUSD * supplyAPY;
     wB += borrowUSD * borrowAPY;
 
-    const supplyDelta = !sup.isZero() ? toBase(sup) : 0;
-    const withdrawDelta = !wit.isZero() ? toBase(wit) : 0;
+    const supplyDelta = sup !== 0n ? toBase(sup) : 0;
+    const withdrawDelta = wit !== 0n ? toBase(wit) : 0;
     let predictedLendBase = baseLend + supplyDelta - withdrawDelta;
     if (predictedLendBase < 0) predictedLendBase = 0;
     const predictedLendUSD = predictedLendBase * priceUSD;
     predL += predictedLendUSD;
 
-    const borrowDelta = !bor.isZero() ? toBase(bor) : 0;
-    const repayDelta = !rep.isZero() ? toBase(rep) : 0;
+    const borrowDelta = bor !== 0n ? toBase(bor) : 0;
+    const repayDelta = rep !== 0n ? toBase(rep) : 0;
     let predictedBorrowBase = baseBorrow + borrowDelta - repayDelta;
     if (predictedBorrowBase < 0) predictedBorrowBase = 0;
     const predictedBorrowUSD = predictedBorrowBase * priceUSD;
