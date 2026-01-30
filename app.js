@@ -42,6 +42,12 @@ const pools = [
     priceSymbol: "ETHUSDT",
   },
   {
+    name: "stETH",
+    address: "0xbC6B6c837560D1fE317eBb54E105C89f303d5AFd",
+    decimals: 18,
+    priceSymbol: "ETHUSDT",
+  },
+  {
     name: "WBTC",
     address: "0x8Fc8BFD80d6A9F17Fb98A373023d72531792B431",
     decimals: 8,
