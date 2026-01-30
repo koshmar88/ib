@@ -47,6 +47,11 @@ const pools = [
     decimals: 8,
     priceSymbol: "BTCUSDT",
   },
+  {
+    name: "ibEUR",
+    address: "0x00e5c0774A5F065c285068170b20393925C84BF3",
+    decimals: 18,
+  },
 ];
 const COMPTROLLER_ADDRESS = "0xAB1c342C7bf5Ec5F02ADEA1c2270670bCa144CbB";
 async function getPriceOracleAddress() {
@@ -1098,4 +1103,3 @@ async function updateAllCollateralFactors() {
     }
   }
 }
-
