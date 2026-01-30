@@ -69,6 +69,11 @@ const pools = [
     address: "0xa7c4054AFD3DbBbF5bFe80f41862b89ea05c9806",
     decimals: 18,
   },
+  {
+    name: "EURS",
+    address: "0xA8caeA564811af0e92b1E044f3eDd18Fa9a73E4F",
+    decimals: 2,
+  },
 ];
 const COMPTROLLER_ADDRESS = "0xAB1c342C7bf5Ec5F02ADEA1c2270670bCa144CbB";
 async function getPriceOracleAddress() {
