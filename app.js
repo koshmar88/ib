@@ -64,6 +64,11 @@ const pools = [
     decimals: 18,
     priceSymbol: "LINKUSDT",
   },
+  {
+    name: "sUSD",
+    address: "0xa7c4054AFD3DbBbF5bFe80f41862b89ea05c9806",
+    decimals: 18,
+  },
 ];
 const COMPTROLLER_ADDRESS = "0xAB1c342C7bf5Ec5F02ADEA1c2270670bCa144CbB";
 async function getPriceOracleAddress() {
