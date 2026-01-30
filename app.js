@@ -171,7 +171,7 @@ async function tryContractCall(address, abi, callback, context) {
 function setStatus(msg) {
   document.getElementById("status").innerText = msg;
 }
-function updateIbeurPrice() {
+function updateIbeurMetrics() {
   const el = document.getElementById("ibeur-price");
   if (!el) return;
   const pool = pools.find((p) => p.name === "ibEUR");
@@ -179,12 +179,44 @@ function updateIbeurPrice() {
     el.textContent = "";
     return;
   }
-  const price = window.dashboardState.poolStats?.[pool.address]?.priceUSD;
-  if (typeof price === "number" && price > 0) {
-    el.innerHTML = `ibEUR price: <strong>$${price.toFixed(4)}</strong> per ibEUR`;
-  } else {
-    el.innerHTML = "ibEUR price: N/A";
+  const stats = window.dashboardState.poolStats?.[pool.address];
+  if (!stats) {
+    el.innerHTML = "ibEUR: connect wallet to load pool data.";
+    return;
   }
+  const price = stats.priceUSD;
+  const borrowLimitUSD = window.dashboardState.borrowLiquidityUSD;
+  let cashBase = 0;
+  try {
+    cashBase = parseFloat(ethers.formatUnits(stats.cash, pool.decimals));
+  } catch {
+    cashBase = 0;
+  }
+  const priceOk = typeof price === "number" && price > 0;
+  const liquidityUSDT = priceOk ? cashBase * price : null;
+  const borrowLimitIbeur =
+    priceOk && typeof borrowLimitUSD === "number"
+      ? borrowLimitUSD / price
+      : null;
+  const lines = [];
+  if (priceOk) {
+    lines.push(`1 ibEUR ≈ ${price.toFixed(4)} USDT`);
+  } else {
+    lines.push("1 ibEUR ≈ N/A");
+  }
+  if (liquidityUSDT !== null) {
+    lines.push(`ibEUR pool liquidity ≈ ${liquidityUSDT.toFixed(2)} USDT`);
+  }
+  if (typeof borrowLimitUSD === "number") {
+    if (borrowLimitIbeur !== null) {
+      lines.push(
+        `Your borrow limit: ${borrowLimitUSD.toFixed(2)} USDT (~${borrowLimitIbeur.toFixed(2)} ibEUR)`,
+      );
+    } else {
+      lines.push(`Your borrow limit: ${borrowLimitUSD.toFixed(2)} USDT`);
+    }
+  }
+  el.innerHTML = lines.join("<br/>");
 }
 function updateUsage(cur, pred) {
   const u = document.getElementById("usage-bar");
@@ -258,7 +290,7 @@ function disconnectWallet() {
     "Portfolio: $0.00 | Net APY: 0% | Daily: $0.00 | Hourly: $0.00";
   updateUsage(0, 0);
   clearPredAPY();
-  updateIbeurPrice();
+  updateIbeurMetrics();
   setStatus("");
 }
 
@@ -470,7 +502,7 @@ async function loadPoolData() {
     `Portfolio: $${myNet.toFixed(2)} | Net APY: ${(netAPY * 100).toFixed(2)}% | Daily: $${daily.toFixed(2)} | Hourly: $${hourly.toFixed(2)} | Borrow Limit: $${borrowLimitFromComptroller.toFixed(2)}<br>` +
     `<span style="color:#fff;font-size:1.3em;font-weight:bold;">Borrow Limit: ${borrowLimitETH.toFixed(4)} ETH</span>`;
   updateUsage(usage, usage);
-  updateIbeurPrice();
+  updateIbeurMetrics();
   clearPredAPY();
   setStatus("");
   // history tracking removed
