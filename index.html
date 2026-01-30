@@ -169,6 +169,15 @@ button:hover {
     font-size: 1em;
   }
 }
+.price-note {
+  text-align: center;
+  margin: 12px 0 6px;
+  color: #cbd5e1;
+  font-weight: 600;
+}
+.price-note strong {
+  color: #f8fafc;
+}
 </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -205,7 +214,8 @@ button:hover {
     <tbody id="data-body"></tbody>
   </table>
   </div>
+  <div id="ibeur-price" class="price-note"></div>
   <div id="status"></div>
-  <script src="app.js?v=20260130-ibeu"></script>
+  <script src="app.js?v=20260130-ibeu-price"></script>
 </body>
 </html>
